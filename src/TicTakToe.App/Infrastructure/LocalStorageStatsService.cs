@@ -22,7 +22,16 @@ public sealed class LocalStorageStatsService : IStatsService
         var json = await _js.InvokeAsync<string?>("tttStorage.getItem", Key(mode));
         if (string.IsNullOrEmpty(json)) return GameStats.Empty;
 
-        return JsonSerializer.Deserialize<GameStats>(json) ?? GameStats.Empty;
+        try
+        {
+            return JsonSerializer.Deserialize<GameStats>(json) ?? GameStats.Empty;
+        }
+        catch (JsonException)
+        {
+            // Self-heal: remove the corrupted entry so it doesn't fail on every load.
+            await _js.InvokeVoidAsync("tttStorage.removeItem", Key(mode));
+            return GameStats.Empty;
+        }
     }
 
     /// <inheritdoc/>

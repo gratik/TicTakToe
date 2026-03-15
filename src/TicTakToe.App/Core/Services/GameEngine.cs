@@ -51,6 +51,7 @@ public sealed class GameEngine : IGameEngine
     public void HumanMove(int index)
     {
         if (Result != GameResult.InProgress) return;
+        if (Mode == GameMode.CvC) return;
         if (!Board.IsValidMove(index)) return;
 
         ApplyMove(index);
@@ -60,6 +61,7 @@ public sealed class GameEngine : IGameEngine
     public void TriggerAiMove()
     {
         if (Result != GameResult.InProgress) return;
+        if (Mode == GameMode.PvP) return;
 
         int move = _aiPlayer.ChooseMove(Board, CurrentPlayer, Difficulty);
         ApplyMove(move);

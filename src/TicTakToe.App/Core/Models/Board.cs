@@ -47,8 +47,14 @@ public sealed class Board
     }
 
     /// <summary>Returns all unoccupied cell indices.</summary>
-    public IReadOnlyList<int> GetAvailableMoves() =>
-        Enumerable.Range(0, 9).Where(i => _cells[i] == Player.None).ToList();
+    public IReadOnlyList<int> GetAvailableMoves()
+    {
+        var moves = new List<int>(9);
+        for (int i = 0; i < 9; i++)
+            if (_cells[i] == Player.None)
+                moves.Add(i);
+        return moves;
+    }
 
     /// <summary>Evaluates the current state of the board and returns the <see cref="GameResult"/>.</summary>
     public GameResult CheckResult()
@@ -80,5 +86,5 @@ public sealed class Board
     public Board Clone() => new(_cells);
 
     /// <summary>Exposes a read-only view of all nine cells.</summary>
-    public IReadOnlyList<Player> Cells => _cells;
+    public IReadOnlyList<Player> Cells => Array.AsReadOnly(_cells);
 }

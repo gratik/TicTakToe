@@ -110,4 +110,16 @@ public class LocalStorageStatsServiceTests
 
         Assert.Equal(GameStats.Empty, stats);
     }
+
+    [Fact]
+    public async Task GetStatsAsync_ReturnsEmpty_WhenJsonIsMalformed_AndClearsEntry()
+    {
+        var (service, store) = CreateService();
+        store["ttt_stats_PvP"] = "not valid json {{{";
+
+        var stats = await service.GetStatsAsync(GameMode.PvP);
+
+        Assert.Equal(GameStats.Empty, stats);
+        Assert.False(store.ContainsKey("ttt_stats_PvP"), "Corrupted entry should be self-healed (removed).");
+    }
 }

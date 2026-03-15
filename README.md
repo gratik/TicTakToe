@@ -29,7 +29,7 @@ A production-quality, interactive Tic-Tac-Toe game built with **C# / Blazor Web 
 | **CvC auto-play** | Continuous self-play that progressively accelerates until games become a blur |
 | **Persistent stats** | Win / loss / draw counts per mode, stored in browser `localStorage` |
 | **Light / dark theme** | Toggle with instant persistence; applied before first render to prevent flash |
-| **Fully tested** | 133 xUnit/bUnit tests covering domain logic, services, AI strategies, and Blazor components (82.90% line coverage) |
+| **Fully tested** | 145 xUnit/bUnit tests covering domain logic, services, AI strategies, and Blazor components (83%+ line coverage) |
 | **Clean architecture** | Domain layer has zero Blazor/web dependencies — fully testable in isolation |
 
 ---
@@ -258,7 +258,7 @@ The `data-theme` attribute is set on `<html>` by JavaScript so that `:root` CSS 
 
 ## Testing
 
-The project has **133 tests** across three categories (82.90% line coverage, 94.71% excluding scaffold pages):
+The project has **145 tests** across three categories (83%+ line coverage, 95%+ excluding scaffold pages):
 
 | Category | Framework | Coverage |
 |---|---|---|

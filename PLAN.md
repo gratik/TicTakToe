@@ -10,57 +10,40 @@ Date: 2026-03-15
 - Improve test stability and close edge-case coverage gaps.
 - Tighten model encapsulation and accessibility semantics.
 
-## Phase 1: Home Orchestration Hardening
+## Phase 1: Home Orchestration Hardening ✅ DONE
 
 Target files:
 
 - src/TicTakToe.App/Components/Pages/Home.razor
 
-Changes:
+Changes made:
 
-- Replace async void state-change flow with a guarded async pipeline.
-- Add exception handling around state-change work.
-- Replace System.Threading.Timer scheduling with cancellation-based async scheduling.
-- Add idempotency guard so result persistence runs once per completed game.
+- Replaced `System.Threading.Timer` scheduling with `CancellationTokenSource` + `Task.Delay` (`ExecuteAfterDelayAsync`). Cancellation is clean and immediate on disposal or mode change.
+- Added `_resultPersisted` flag — `PersistResultAsync` is guarded and runs exactly once per completed game, even if `GameStateChanged` fires multiple times.
+- Added try/catch in the `async void OnGameStateChanged` handler so exceptions never propagate into the Blazor circuit.
+- `ScheduleCvcRestart` resets `_resultPersisted = false` before each auto-restart so CvC stats accumulate correctly across chained games.
 
-Success criteria:
-
-- No overlapping AI/game-loop callbacks during mode changes or fast state transitions.
-- No duplicate stats writes for the same finished game.
-- Disposal cleanly cancels scheduled work.
-
-## Phase 2: Engine Invariant Enforcement
+## Phase 2: Engine Invariant Enforcement ✅ DONE
 
 Target files:
 
 - src/TicTakToe.App/Core/Services/GameEngine.cs
 
-Changes:
+Changes made:
 
-- Enforce mode and turn invariants in engine methods.
-- No-op safely when callers request invalid move paths.
+- `HumanMove` returns early (no-op) when `Mode == GameMode.CvC`.
+- `TriggerAiMove` returns early (no-op) when `Mode == GameMode.PvP`.
 
-Success criteria:
-
-- HumanMove blocked in CvC.
-- TriggerAiMove blocked in PvP.
-- Valid existing gameplay behavior remains unchanged.
-
-## Phase 3: Stats Deserialization Resilience
+## Phase 3: Stats Deserialization Resilience ✅ DONE
 
 Target files:
 
 - src/TicTakToe.App/Infrastructure/LocalStorageStatsService.cs
 
-Changes:
+Changes made:
 
-- Catch JSON parse failures and return empty stats fallback.
-- Optionally clear invalid localStorage payload for self-healing behavior.
-
-Success criteria:
-
-- Invalid/corrupt localStorage data does not throw into app flow.
-- Normal read/write behavior remains unchanged.
+- `GetStatsAsync` wraps `JsonSerializer.Deserialize` in a `catch (JsonException)` block.
+- On failure, removes the corrupt `localStorage` key (self-heal) and returns `GameStats.Empty`.
 
 ## Phase 4: Test Reliability and Coverage ✅ DONE
 
@@ -86,37 +69,27 @@ Results:
 - Test count: 73 → 133
 - Line coverage: 78.72% → 82.90% overall; 94.71% for game-specific code
 
-## Phase 5: Board Encapsulation
+## Phase 5: Board Encapsulation ✅ DONE
 
 Target files:
 
 - src/TicTakToe.App/Core/Models/Board.cs
 
-Changes:
+Changes made:
 
-- Prevent direct external access to mutable board backing storage.
-- Review available-move allocation behavior and optimize only if clean and justified.
+- `Cells` returns `Array.AsReadOnly(_cells)` (`ReadOnlyCollection<Player>`) instead of the raw array, preventing cast-and-mutate bypasses.
+- `GetAvailableMoves()` replaced LINQ `Enumerable.Range(...).Where(...).ToList()` with a pre-sized `List<int>(9)` loop, avoiding IEnumerable allocations.
 
-Success criteria:
-
-- External mutation risk reduced/eliminated.
-- Existing tests continue to pass.
-
-## Phase 6: Accessibility Refinement
+## Phase 6: Accessibility Refinement ✅ DONE
 
 Target files:
 
 - src/TicTakToe.App/Components/Game/GameCell.razor
-- src/TicTakToe.App/Components/Game/GameBoard.razor
 
-Changes:
+Changes made:
 
-- Improve aria-label values to include row/column and current cell state.
-- Keep board-level role/label semantics coherent.
-
-Success criteria:
-
-- Screen reader announcements are clear and human-meaningful.
+- `aria-label` replaced with a computed `AriaLabel` property that outputs `"Row R, column C, empty|marked X|marked O"`.
+- `GameBoard` already had `role="grid"` and `aria-label="Tic-Tac-Toe board"` — no changes needed.
 
 ## Verification
 

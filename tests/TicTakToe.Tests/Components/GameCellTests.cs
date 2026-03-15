@@ -109,4 +109,55 @@ public class GameCellTests : BunitContext
 
         Assert.Equal(5, received);
     }
+
+    // ── Accessibility (aria-label) ───────────────────────────────────────────
+
+    [Theory]
+    [InlineData(0, "Row 1, column 1")]
+    [InlineData(2, "Row 1, column 3")]
+    [InlineData(4, "Row 2, column 2")]
+    [InlineData(6, "Row 3, column 1")]
+    [InlineData(8, "Row 3, column 3")]
+    public void AriaLabel_IncludesCorrectRowAndColumn(int index, string expectedPrefix)
+    {
+        var cut = Render<GameCell>(p => p
+            .Add(c => c.Index, index)
+            .Add(c => c.Value, Player.None)
+            .Add(c => c.IsClickable, false));
+
+        Assert.StartsWith(expectedPrefix, cut.Find("button.cell").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void AriaLabel_IncludesEmpty_WhenValueIsNone()
+    {
+        var cut = Render<GameCell>(p => p
+            .Add(c => c.Index, 0)
+            .Add(c => c.Value, Player.None)
+            .Add(c => c.IsClickable, false));
+
+        Assert.Contains(", empty", cut.Find("button.cell").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void AriaLabel_IncludesMarkedX_WhenValueIsX()
+    {
+        var cut = Render<GameCell>(p => p
+            .Add(c => c.Index, 0)
+            .Add(c => c.Value, Player.X)
+            .Add(c => c.IsClickable, false));
+
+        Assert.Contains(", marked X", cut.Find("button.cell").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void AriaLabel_IncludesMarkedO_WhenValueIsO()
+    {
+        var cut = Render<GameCell>(p => p
+            .Add(c => c.Index, 0)
+            .Add(c => c.Value, Player.O)
+            .Add(c => c.IsClickable, false));
+
+        Assert.Contains(", marked O", cut.Find("button.cell").GetAttribute("aria-label"));
+    }
 }

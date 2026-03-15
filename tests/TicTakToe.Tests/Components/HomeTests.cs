@@ -264,4 +264,18 @@ public class HomeTests : BunitContext
 
         engine.VerifyRemove(e => e.GameStateChanged -= It.IsAny<Action>(), Times.Once);
     }
+
+    [Fact]
+    public async Task PersistResultAsync_IsIdempotent_WhenEventFiresTwice()
+    {
+        var (_, stats) = SetupServices();
+        Render<Home>();
+
+        _engineResult = GameResult.XWins;
+        _capturedHandler?.Invoke();
+        _capturedHandler?.Invoke(); // second fire — should not double-write
+        await Task.Delay(80);
+
+        stats.Verify(s => s.IncrementWinAsync(GameMode.PvP), Times.Once);
+    }
 }

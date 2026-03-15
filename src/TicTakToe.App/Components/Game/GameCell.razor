@@ -2,7 +2,7 @@
 <button class="cell @CssClass"
         @onclick="OnClick"
         disabled="@(!IsClickable)"
-        aria-label="Cell @Index">
+        aria-label="@AriaLabel">
     <span class="cell-mark">@Symbol</span>
 </button>
 
@@ -28,6 +28,22 @@
         Player.O => "O",
         _ => ""
     };
+
+    private string AriaLabel
+    {
+        get
+        {
+            var row = Index / 3 + 1;
+            var col = Index % 3 + 1;
+            var state = Value switch
+            {
+                Player.X => ", marked X",
+                Player.O => ", marked O",
+                _ => ", empty"
+            };
+            return $"Row {row}, column {col}{state}";
+        }
+    }
 
     private string CssClass
     {

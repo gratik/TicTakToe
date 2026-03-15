@@ -112,4 +112,27 @@ public class GameEngineTests
         Assert.Equal(GameMode.CvC, engine.Mode);
         Assert.Equal(Difficulty.Medium, engine.Difficulty);
     }
+
+    [Fact]
+    public void HumanMove_IsNoOp_InCvCMode()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.CvC, Difficulty.Easy);
+
+        engine.HumanMove(0);
+
+        Assert.Equal(Player.None, engine.Board[0]);
+    }
+
+    [Fact]
+    public void TriggerAiMove_IsNoOp_InPvPMode()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.PvP, Difficulty.Easy);
+
+        var snapshot = engine.Board.Cells.ToArray();
+        engine.TriggerAiMove();
+
+        Assert.Equal(snapshot, engine.Board.Cells);
+    }
 }

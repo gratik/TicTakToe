@@ -27,7 +27,8 @@
     private GameMode _mode = GameMode.PvP;
     private Difficulty _difficulty = Difficulty.Medium;
     private StatsPanel? _statsPanel;
-    private System.Threading.Timer? _cvcTimer;
+    private CancellationTokenSource? _cts;
+    private bool _resultPersisted;
 
     // CvC speed acceleration
     private const int CvcStartDelay = 600;
@@ -45,19 +46,27 @@
     {
         await InvokeAsync(async () =>
         {
-            StateHasChanged();
-            if (Engine.Result != GameResult.InProgress)
+            try
             {
-                await PersistResultAsync();
-                if (_statsPanel is not null)
-                    await _statsPanel.RefreshAsync();
-
-                // CvC: decay speed and auto-start next game
-                if (_mode == GameMode.CvC)
+                StateHasChanged();
+                if (Engine.Result != GameResult.InProgress)
                 {
-                    _cvcMoveDelay = Math.Max(CvcMinDelay, (int)(_cvcMoveDelay * CvcDecayFactor));
-                    ScheduleCvcRestart();
+                    await PersistResultAsync();
+                    if (_statsPanel is not null)
+                        await _statsPanel.RefreshAsync();
+
+                    // CvC: decay speed and auto-start next game
+                    if (_mode == GameMode.CvC)
+                    {
+                        _cvcMoveDelay = Math.Max(CvcMinDelay, (int)(_cvcMoveDelay * CvcDecayFactor));
+                        ScheduleCvcRestart();
+                    }
                 }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Exceptions must not propagate out of the async-void circuit handler.
+                _ = ex;
             }
         });
     }
@@ -87,7 +96,8 @@
     /// <summary>Starts a fresh game. Resets CvC speed when called manually.</summary>
     private void StartNewGame()
     {
-        CancelTimer();
+        CancelScheduled();
+        _resultPersisted = false;
         _cvcMoveDelay = CvcStartDelay; // reset speed on manual new game
         Engine.StartGame(_mode, _difficulty);
 
@@ -103,18 +113,17 @@
     /// </summary>
     private void ScheduleAiMove(int delayMs)
     {
-        CancelTimer();
-        _cvcTimer = new System.Threading.Timer(_ =>
+        CancelScheduled();
+        var cts = new CancellationTokenSource();
+        _cts = cts;
+        _ = ExecuteAfterDelayAsync(delayMs, cts.Token, () =>
         {
-            InvokeAsync(() =>
-            {
-                if (Engine.Result != GameResult.InProgress) return;
-                Engine.TriggerAiMove();
+            if (Engine.Result != GameResult.InProgress) return;
+            Engine.TriggerAiMove();
 
-                if (_mode == GameMode.CvC && Engine.Result == GameResult.InProgress)
-                    ScheduleAiMove(_cvcMoveDelay);
-            });
-        }, null, delayMs, System.Threading.Timeout.Infinite);
+            if (_mode == GameMode.CvC && Engine.Result == GameResult.InProgress)
+                ScheduleAiMove(_cvcMoveDelay);
+        });
     }
 
     /// <summary>
@@ -125,26 +134,44 @@
     {
         // Pause between games = 3× the current move delay (min 120 ms) so the result is briefly visible
         int pauseMs = Math.Max(120, _cvcMoveDelay * 3);
-        CancelTimer();
-        _cvcTimer = new System.Threading.Timer(_ =>
+        CancelScheduled();
+        var cts = new CancellationTokenSource();
+        _cts = cts;
+        _ = ExecuteAfterDelayAsync(pauseMs, cts.Token, () =>
         {
-            InvokeAsync(() =>
-            {
-                if (_mode != GameMode.CvC) return;
-                Engine.StartGame(GameMode.CvC, _difficulty);
-                ScheduleAiMove(_cvcMoveDelay);
-            });
-        }, null, pauseMs, System.Threading.Timeout.Infinite);
+            if (_mode != GameMode.CvC) return;
+            _resultPersisted = false;
+            Engine.StartGame(GameMode.CvC, _difficulty);
+            ScheduleAiMove(_cvcMoveDelay);
+        });
     }
 
-    private void CancelTimer()
+    /// <summary>Awaits <paramref name="delayMs"/> then dispatches <paramref name="action"/> on the circuit thread.</summary>
+    private async Task ExecuteAfterDelayAsync(int delayMs, CancellationToken token, Action action)
     {
-        _cvcTimer?.Dispose();
-        _cvcTimer = null;
+        try
+        {
+            await Task.Delay(delayMs, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        await InvokeAsync(action);
+    }
+
+    private void CancelScheduled()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
     }
 
     private async Task PersistResultAsync()
     {
+        if (_resultPersisted) return;
+        _resultPersisted = true;
+
         switch (_mode)
         {
             case GameMode.PvP:
@@ -175,6 +202,6 @@
     public void Dispose()
     {
         Engine.GameStateChanged -= OnGameStateChanged;
-        CancelTimer();
+        CancelScheduled();
     }
 }

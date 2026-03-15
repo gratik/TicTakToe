@@ -75,6 +75,11 @@ tests/TicTakToe.Tests/          xUnit + Moq; mirrors src structure
 ## Testing
 
 - `BoardTests` — covers all 8 win lines, draw, invalid moves, cloning
-- `MinimaxStrategyTests` — exhaustively proves Hard AI never loses as X or O
-- `LocalStorageStatsServiceTests` — mocks `IJSRuntime` with Moq
-- No bUnit component tests yet; add them in `tests/TicTakToe.Tests/Components/`
+- `MinimaxStrategyTests` — exhaustively proves Hard AI never loses as X or O; throws on full board
+- `LocalStorageStatsServiceTests` — mocks `IJSRuntime` with Moq; covers null-deserialization fallback
+- `GameCellTests` — symbol rendering, CSS classes, click callback (bUnit)
+- `GameControlsTests` — mode/difficulty selects, callbacks, PvP disable logic (bUnit)
+- `GameStatusTests` — all StatusText/StatusIcon/StatusClass branches (bUnit)
+- `StatsPanelTests` — display, reset callback, active-mode highlight (bUnit)
+- `ThemeToggleTests` — button render, aria-label, theme icons (bUnit)
+- `HomeTests` — init, human move, mode/difficulty changes, all PersistResultAsync branches, Dispose (bUnit + Moq)

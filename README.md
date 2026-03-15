@@ -29,7 +29,7 @@ A production-quality, interactive Tic-Tac-Toe game built with **C# / Blazor Web 
 | **CvC auto-play** | Continuous self-play that progressively accelerates until games become a blur |
 | **Persistent stats** | Win / loss / draw counts per mode, stored in browser `localStorage` |
 | **Light / dark theme** | Toggle with instant persistence; applied before first render to prevent flash |
-| **Fully tested** | 73 xUnit tests covering domain logic, services, AI strategies, and Blazor components |
+| **Fully tested** | 133 xUnit/bUnit tests covering domain logic, services, AI strategies, and Blazor components (82.90% line coverage) |
 | **Clean architecture** | Domain layer has zero Blazor/web dependencies — fully testable in isolation |
 
 ---
@@ -132,7 +132,12 @@ TicTakToe/
         │   └── LocalStorageStatsServiceTests.cs
         └── Components/
             ├── GameBoardTests.cs
-            └── StatsPanelTests.cs
+            ├── GameCellTests.cs
+            ├── GameControlsTests.cs
+            ├── GameStatusTests.cs
+            ├── HomeTests.cs
+            ├── StatsPanelTests.cs
+            └── ThemeToggleTests.cs
 ```
 
 ---
@@ -253,13 +258,13 @@ The `data-theme` attribute is set on `<html>` by JavaScript so that `:root` CSS 
 
 ## Testing
 
-The project has **73 tests** across three categories:
+The project has **133 tests** across three categories (82.90% line coverage, 94.71% excluding scaffold pages):
 
 | Category | Framework | Coverage |
 |---|---|---|
 | Domain / Core | xUnit | `Board`, `GameEngine`, `AiPlayer`, `GameStats`, all three AI strategies |
 | Infrastructure | xUnit + Moq | `LocalStorageStatsService` JS interop calls |
-| Components | bUnit | `GameBoard` rendering and interaction, `StatsPanel` display |
+| Components | bUnit | `GameBoard`, `GameCell`, `GameControls`, `GameStatus`, `StatsPanel`, `ThemeToggle`, `Home` |
 
 ```bash
 dotnet test                          # run all tests
@@ -271,6 +276,9 @@ dotnet test --logger "console;verbosity=detailed"  # verbose output
 - **`MinimaxStrategyTests`**: Exhaustively proves the Hard AI never loses from any game state (plays every possible first move as X and verifies O draws or wins).
 - **`GameEngineTests`**: Covers win detection for all 8 winning lines, draw detection, turn alternation, and the `GameStateChanged` event.
 - **`GameBoardTests`** (bUnit): Verifies correct cell rendering, disabled state when game is over, and click callbacks.
+- **`GameStatusTests`** (bUnit): Covers all `StatusText`, `StatusIcon`, and `StatusClass` branches — XWins, OWins, Draw, and every in-progress mode/player combination.
+- **`GameControlsTests`** (bUnit): Verifies mode/difficulty select callbacks, PvP disabling of the difficulty selector, and New Game trigger.
+- **`HomeTests`** (bUnit + Moq): Tests page initialisation, human move forwarding, mode/difficulty changes, all `PersistResultAsync` branches (PvP/PvC/CvC × win/loss/draw), and `IDisposable` cleanup.
 
 ---
 

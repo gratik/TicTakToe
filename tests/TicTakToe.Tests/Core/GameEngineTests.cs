@@ -1,0 +1,115 @@
+namespace TicTakToe.Tests.Core;
+
+public class GameEngineTests
+{
+    private GameEngine CreateEngine(Difficulty difficulty = Difficulty.Hard)
+    {
+        var strategies = new IAiStrategy[]
+        {
+            new RandomStrategy(),
+            new WeightedStrategy(),
+            new MinimaxStrategy()
+        };
+        var ai = new AiPlayer(strategies);
+        return new GameEngine(ai);
+    }
+
+    [Fact]
+    public void StartGame_ResetsBoard_AndSetsCurrentPlayerX()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.PvP, Difficulty.Easy);
+        Assert.Equal(Player.X, engine.CurrentPlayer);
+        Assert.Equal(GameResult.InProgress, engine.Result);
+        Assert.All(engine.Board.Cells, c => Assert.Equal(Player.None, c));
+    }
+
+    [Fact]
+    public void StartGame_RaisesGameStateChanged()
+    {
+        var engine = CreateEngine();
+        bool raised = false;
+        engine.GameStateChanged += () => raised = true;
+        engine.StartGame(GameMode.PvP, Difficulty.Easy);
+        Assert.True(raised);
+    }
+
+    [Fact]
+    public void HumanMove_PlacesCurrentPlayer_AndSwitchesTurn()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.PvP, Difficulty.Easy);
+        engine.HumanMove(0);
+        Assert.Equal(Player.X, engine.Board[0]);
+        Assert.Equal(Player.O, engine.CurrentPlayer);
+    }
+
+    [Fact]
+    public void HumanMove_DoesNothing_OnOccupiedCell()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.PvP, Difficulty.Easy);
+        engine.HumanMove(0);
+        var playerBefore = engine.CurrentPlayer;
+        engine.HumanMove(0); // occupied
+        Assert.Equal(playerBefore, engine.CurrentPlayer);
+    }
+
+    [Fact]
+    public void HumanMove_DoesNothing_WhenGameOver()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.PvP, Difficulty.Easy);
+        // Force X win
+        engine.HumanMove(0); engine.HumanMove(3);
+        engine.HumanMove(1); engine.HumanMove(4);
+        engine.HumanMove(2); // X wins top row
+
+        Assert.Equal(GameResult.XWins, engine.Result);
+        engine.HumanMove(5); // should no-op
+        Assert.Equal(Player.None, engine.Board[5]);
+    }
+
+    [Fact]
+    public void HumanMove_RaisesGameStateChanged()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.PvP, Difficulty.Easy);
+        int count = 0;
+        engine.GameStateChanged += () => count++;
+        engine.HumanMove(0);
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public void TriggerAiMove_PlacesMove_ForCurrentPlayer()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.PvC, Difficulty.Hard);
+        engine.TriggerAiMove(); // AI plays as X first
+        Assert.NotEqual(Player.None, engine.Board.Cells.First(c => c != Player.None));
+    }
+
+    [Fact]
+    public void TriggerAiMove_DoesNothing_WhenGameOver()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.PvP, Difficulty.Easy);
+        engine.HumanMove(0); engine.HumanMove(3);
+        engine.HumanMove(1); engine.HumanMove(4);
+        engine.HumanMove(2); // X wins
+
+        var boardSnapshot = engine.Board.Cells.ToArray();
+        engine.TriggerAiMove(); // should no-op
+        Assert.Equal(boardSnapshot, engine.Board.Cells);
+    }
+
+    [Fact]
+    public void StartGame_SetsCorrectModeAndDifficulty()
+    {
+        var engine = CreateEngine();
+        engine.StartGame(GameMode.CvC, Difficulty.Medium);
+        Assert.Equal(GameMode.CvC, engine.Mode);
+        Assert.Equal(Difficulty.Medium, engine.Difficulty);
+    }
+}

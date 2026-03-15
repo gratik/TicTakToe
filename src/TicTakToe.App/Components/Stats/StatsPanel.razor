@@ -1,0 +1,62 @@
+@inject IStatsService StatsService
+
+@* Displays win/loss/draw counts for each game mode with a reset button. *@
+<div class="stats-panel card">
+    <div class="stats-header">
+        <h2 class="stats-title">Statistics</h2>
+        <button class="btn btn-danger" @onclick="HandleReset">Reset</button>
+    </div>
+
+    @foreach (GameMode mode in Enum.GetValues<GameMode>())
+    {
+        var stats = _statsByMode.GetValueOrDefault(mode, GameStats.Empty);
+        <div class="stats-row @(mode == ActiveMode ? "stats-row-active" : "")">
+            <span class="mode-label">@ModeLabel(mode)</span>
+            <div class="stat-chips">
+                <span class="chip chip-win" title="Wins">W: @stats.Wins</span>
+                <span class="chip chip-loss" title="Losses">L: @stats.Losses</span>
+                <span class="chip chip-draw" title="Draws">D: @stats.Draws</span>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The currently active game mode (highlighted in the stats panel).</summary>
+    [Parameter] public GameMode ActiveMode { get; set; }
+
+    /// <summary>Raised after stats are successfully reset.</summary>
+    [Parameter] public EventCallback OnReset { get; set; }
+
+    private Dictionary<GameMode, GameStats> _statsByMode = new();
+
+    /// <summary>Reloads stats from storage. Call this after each game ends.</summary>
+    public async Task RefreshAsync()
+    {
+        foreach (GameMode mode in Enum.GetValues<GameMode>())
+            _statsByMode[mode] = await StatsService.GetStatsAsync(mode);
+        StateHasChanged();
+    }
+
+    // OnInitializedAsync runs during SSR prerender where JS is unavailable.
+    // Defer localStorage reads to the first interactive render.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await RefreshAsync();
+    }
+
+    private async Task HandleReset()
+    {
+        await StatsService.ResetAllAsync();
+        await RefreshAsync();
+        await OnReset.InvokeAsync();
+    }
+
+    private static string ModeLabel(GameMode mode) => mode switch
+    {
+        GameMode.PvP => "Player vs Player",
+        GameMode.PvC => "Player vs Computer",
+        GameMode.CvC => "Computer vs Computer",
+        _ => mode.ToString()
+    };
+}

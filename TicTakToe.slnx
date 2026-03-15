@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TicTakToe.App/TicTakToe.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TicTakToe.Tests/TicTakToe.Tests.csproj" />
+  </Folder>
+</Solution>

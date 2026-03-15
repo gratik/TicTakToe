@@ -1,0 +1,45 @@
+@* Renders the 3×3 game grid. *@
+<div class="board" role="grid" aria-label="Tic-Tac-Toe board">
+    @for (int i = 0; i < 9; i++)
+    {
+        var index = i; // capture for lambda
+        <GameCell Index="index"
+                  Value="Engine.Board[index]"
+                  IsWinningCell="@(_winLine?.Contains(index) ?? false)"
+                  IsClickable="@IsHumanClickable(index)"
+                  OnCellClick="HandleCellClick" />
+    }
+</div>
+
+@code {
+    /// <summary>The game engine providing board state.</summary>
+    [Parameter, EditorRequired] public IGameEngine Engine { get; set; } = default!;
+
+    /// <summary>Raised when the human player clicks a valid cell.</summary>
+    [Parameter] public EventCallback<int> OnHumanMove { get; set; }
+
+    private int[]? _winLine;
+
+    protected override void OnParametersSet()
+    {
+        _winLine = Engine.Result != GameResult.InProgress
+            ? Engine.Board.GetWinningLine()
+            : null;
+    }
+
+    private bool IsHumanClickable(int index)
+    {
+        if (Engine.Result != GameResult.InProgress) return false;
+        if (!Engine.Board.IsValidMove(index)) return false;
+
+        return Engine.Mode switch
+        {
+            GameMode.PvP => true,
+            GameMode.PvC => Engine.CurrentPlayer == Player.X,
+            GameMode.CvC => false,
+            _ => false
+        };
+    }
+
+    private void HandleCellClick(int index) => OnHumanMove.InvokeAsync(index);
+}

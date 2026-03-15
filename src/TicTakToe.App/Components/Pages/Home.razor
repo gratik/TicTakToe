@@ -1,0 +1,180 @@
+@page "/"
+@rendermode InteractiveServer
+@inject IGameEngine Engine
+@inject IStatsService StatsService
+@implements IDisposable
+
+<PageTitle>Tic-Tac-Toe</PageTitle>
+
+<div class="game-layout">
+    <div class="game-column">
+        <div class="card game-card">
+            <GameStatus Engine="Engine" />
+            <GameBoard Engine="Engine" OnHumanMove="HandleHumanMove" />
+            <GameControls Mode="_mode"
+                          Difficulty="_difficulty"
+                          OnNewGame="StartNewGame"
+                          OnModeChanged="HandleModeChanged"
+                          OnDifficultyChanged="HandleDifficultyChanged" />
+        </div>
+    </div>
+    <div class="stats-column">
+        <StatsPanel @ref="_statsPanel" ActiveMode="_mode" OnReset="StateHasChanged" />
+    </div>
+</div>
+
+@code {
+    private GameMode _mode = GameMode.PvP;
+    private Difficulty _difficulty = Difficulty.Medium;
+    private StatsPanel? _statsPanel;
+    private System.Threading.Timer? _cvcTimer;
+
+    // CvC speed acceleration
+    private const int CvcStartDelay = 600;
+    private const int CvcMinDelay   = 30;
+    private const double CvcDecayFactor = 0.75;
+    private int _cvcMoveDelay = CvcStartDelay;
+
+    protected override void OnInitialized()
+    {
+        Engine.StartGame(_mode, _difficulty);
+        Engine.GameStateChanged += OnGameStateChanged;
+    }
+
+    private async void OnGameStateChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            if (Engine.Result != GameResult.InProgress)
+            {
+                await PersistResultAsync();
+                if (_statsPanel is not null)
+                    await _statsPanel.RefreshAsync();
+
+                // CvC: decay speed and auto-start next game
+                if (_mode == GameMode.CvC)
+                {
+                    _cvcMoveDelay = Math.Max(CvcMinDelay, (int)(_cvcMoveDelay * CvcDecayFactor));
+                    ScheduleCvcRestart();
+                }
+            }
+        });
+    }
+
+    private void HandleHumanMove(int index)
+    {
+        if (Engine.Result != GameResult.InProgress) return;
+        Engine.HumanMove(index);
+
+        // PvC: after human move, trigger AI
+        if (Engine.Mode == GameMode.PvC && Engine.Result == GameResult.InProgress)
+            ScheduleAiMove(400);
+    }
+
+    private void HandleModeChanged(GameMode mode)
+    {
+        _mode = mode;
+        StartNewGame();
+    }
+
+    private void HandleDifficultyChanged(Difficulty difficulty)
+    {
+        _difficulty = difficulty;
+        StartNewGame();
+    }
+
+    /// <summary>Starts a fresh game. Resets CvC speed when called manually.</summary>
+    private void StartNewGame()
+    {
+        CancelTimer();
+        _cvcMoveDelay = CvcStartDelay; // reset speed on manual new game
+        Engine.StartGame(_mode, _difficulty);
+
+        if (_mode == GameMode.CvC)
+            ScheduleAiMove(_cvcMoveDelay);
+        else if (_mode == GameMode.PvC && Engine.CurrentPlayer == Player.O)
+            ScheduleAiMove(600);
+    }
+
+    /// <summary>
+    /// Schedules the next AI move after <paramref name="delayMs"/> milliseconds.
+    /// In CvC mode, recursively schedules itself until the game ends.
+    /// </summary>
+    private void ScheduleAiMove(int delayMs)
+    {
+        CancelTimer();
+        _cvcTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                if (Engine.Result != GameResult.InProgress) return;
+                Engine.TriggerAiMove();
+
+                if (_mode == GameMode.CvC && Engine.Result == GameResult.InProgress)
+                    ScheduleAiMove(_cvcMoveDelay);
+            });
+        }, null, delayMs, System.Threading.Timeout.Infinite);
+    }
+
+    /// <summary>
+    /// After a CvC game ends, waits a beat then auto-starts the next game.
+    /// No-ops if the user has switched mode.
+    /// </summary>
+    private void ScheduleCvcRestart()
+    {
+        // Pause between games = 3× the current move delay (min 120 ms) so the result is briefly visible
+        int pauseMs = Math.Max(120, _cvcMoveDelay * 3);
+        CancelTimer();
+        _cvcTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                if (_mode != GameMode.CvC) return;
+                Engine.StartGame(GameMode.CvC, _difficulty);
+                ScheduleAiMove(_cvcMoveDelay);
+            });
+        }, null, pauseMs, System.Threading.Timeout.Infinite);
+    }
+
+    private void CancelTimer()
+    {
+        _cvcTimer?.Dispose();
+        _cvcTimer = null;
+    }
+
+    private async Task PersistResultAsync()
+    {
+        switch (_mode)
+        {
+            case GameMode.PvP:
+                if (Engine.Result == GameResult.Draw)
+                    await StatsService.IncrementDrawAsync(_mode);
+                else
+                    await StatsService.IncrementWinAsync(_mode);
+                break;
+
+            case GameMode.PvC:
+                if (Engine.Result == GameResult.Draw)
+                    await StatsService.IncrementDrawAsync(_mode);
+                else if (Engine.Result == GameResult.XWins) // human is X
+                    await StatsService.IncrementWinAsync(_mode);
+                else
+                    await StatsService.IncrementLossAsync(_mode);
+                break;
+
+            case GameMode.CvC:
+                if (Engine.Result == GameResult.Draw)
+                    await StatsService.IncrementDrawAsync(_mode);
+                else
+                    await StatsService.IncrementWinAsync(_mode);
+                break;
+        }
+    }
+
+    public void Dispose()
+    {
+        Engine.GameStateChanged -= OnGameStateChanged;
+        CancelTimer();
+    }
+}

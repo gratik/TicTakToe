@@ -1,0 +1,42 @@
+@* Displays the current turn or final game result. *@
+<div class="status @StatusClass">
+    <span class="status-icon">@StatusIcon</span>
+    <span class="status-text">@StatusText</span>
+</div>
+
+@code {
+    /// <summary>The game engine providing current state.</summary>
+    [Parameter, EditorRequired] public IGameEngine Engine { get; set; } = default!;
+
+    private string StatusText => Engine.Result switch
+    {
+        GameResult.XWins => "Player X wins! 🎉",
+        GameResult.OWins => "Player O wins! 🎉",
+        GameResult.Draw  => "It's a draw!",
+        _ => Engine.Mode == GameMode.CvC
+                ? $"Computer ({Engine.CurrentPlayer}) is thinking…"
+                : $"{PlayerLabel(Engine.CurrentPlayer)}'s turn"
+    };
+
+    private string StatusIcon => Engine.Result switch
+    {
+        GameResult.XWins or GameResult.OWins => "🏆",
+        GameResult.Draw => "🤝",
+        _ => Engine.CurrentPlayer == Player.X ? "✖️" : "⭕"
+    };
+
+    private string StatusClass => Engine.Result switch
+    {
+        GameResult.XWins => "status-win status-x",
+        GameResult.OWins => "status-win status-o",
+        GameResult.Draw  => "status-draw",
+        _ => "status-playing"
+    };
+
+    private string PlayerLabel(Player p) => Engine.Mode switch
+    {
+        GameMode.PvP => p == Player.X ? "Player X" : "Player O",
+        GameMode.PvC => p == Player.X ? "Your" : "Computer's",
+        _ => $"Computer ({p})"
+    };
+}

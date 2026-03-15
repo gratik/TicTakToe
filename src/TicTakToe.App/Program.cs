@@ -1,0 +1,39 @@
+using TicTakToe.App.Components;
+using TicTakToe.App.Core.Services;
+using TicTakToe.App.Core.Services.Interfaces;
+using TicTakToe.App.Core.Services.Strategies;
+using TicTakToe.App.Infrastructure;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+// Game services
+builder.Services.AddScoped<IAiStrategy, RandomStrategy>();
+builder.Services.AddScoped<IAiStrategy, WeightedStrategy>();
+builder.Services.AddScoped<IAiStrategy, MinimaxStrategy>();
+builder.Services.AddScoped<IAiPlayer, AiPlayer>();
+builder.Services.AddScoped<IGameEngine, GameEngine>();
+builder.Services.AddScoped<IStatsService, LocalStorageStatsService>();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    app.UseHsts();
+}
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseHttpsRedirection();
+
+app.UseAntiforgery();
+
+app.MapStaticAssets();
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+
+app.Run();

@@ -1,0 +1,51 @@
+/* ── GameCell ────────────────────────────────────────────────────── */
+.cell {
+    aspect-ratio: 1;
+    width: 100%;
+    background: var(--surface-alt);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: default;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition), border-color var(--transition), transform 100ms ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.cell-clickable {
+    cursor: pointer;
+}
+
+.cell-clickable:hover {
+    background: var(--cell-hover);
+    border-color: var(--accent);
+    transform: scale(1.03);
+}
+
+.cell-mark {
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1;
+    animation: pop-in 200ms cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+.cell-x .cell-mark { color: var(--cell-x); }
+.cell-o .cell-mark { color: var(--cell-o); }
+
+.cell-win {
+    border-color: var(--accent);
+    background: var(--cell-hover);
+    animation: win-pulse 800ms ease infinite alternate;
+}
+
+@keyframes pop-in {
+    from { transform: scale(0) rotate(-10deg); opacity: 0; }
+    to   { transform: scale(1) rotate(0deg);   opacity: 1; }
+}
+
+@keyframes win-pulse {
+    from { box-shadow: 0 0 0 0 var(--win-glow); }
+    to   { box-shadow: 0 0 0 8px var(--win-glow); }
+}

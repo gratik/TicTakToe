@@ -1,0 +1,14 @@
+@* Theme toggle — works via pure JS so it functions in the SSR layout shell *@
+<button class="theme-toggle" onclick="tttStorage.toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+    <span class="theme-icon-light">🌙</span>
+    <span class="theme-icon-dark">☀️</span>
+</button>
+
+@code {
+    // Parameters kept for potential future use / testing
+    /// <summary>Current theme value ("light" or "dark").</summary>
+    [Parameter] public string Theme { get; set; } = "light";
+
+    /// <summary>Optional callback for Blazor consumers who want to react to toggles.</summary>
+    [Parameter] public EventCallback OnToggle { get; set; }
+}

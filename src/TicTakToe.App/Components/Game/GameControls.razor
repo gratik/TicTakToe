@@ -1,0 +1,52 @@
+@* Game mode, difficulty selectors, and new-game button. *@
+<div class="controls">
+    <div class="controls-selectors">
+        <div class="control-group">
+            <label for="mode-select">Mode</label>
+            <select id="mode-select" value="@Mode" @onchange="HandleModeChange">
+                <option value="@GameMode.PvP">Player vs Player</option>
+                <option value="@GameMode.PvC">Player vs Computer</option>
+                <option value="@GameMode.CvC">Computer vs Computer</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="diff-select">Difficulty</label>
+            <select id="diff-select" value="@Difficulty" @onchange="HandleDifficultyChange"
+                    disabled="@(Mode == GameMode.PvP)">
+                <option value="@Difficulty.Easy">Easy</option>
+                <option value="@Difficulty.Medium">Medium</option>
+                <option value="@Difficulty.Hard">Hard</option>
+            </select>
+        </div>
+    </div>
+    <button class="btn btn-primary" @onclick="OnNewGame">New Game</button>
+</div>
+
+@code {
+    /// <summary>The currently selected game mode.</summary>
+    [Parameter] public GameMode Mode { get; set; }
+
+    /// <summary>The currently selected difficulty.</summary>
+    [Parameter] public Difficulty Difficulty { get; set; }
+
+    /// <summary>Raised when the user requests a new game.</summary>
+    [Parameter] public EventCallback OnNewGame { get; set; }
+
+    /// <summary>Raised when the user changes the game mode.</summary>
+    [Parameter] public EventCallback<GameMode> OnModeChanged { get; set; }
+
+    /// <summary>Raised when the user changes the difficulty.</summary>
+    [Parameter] public EventCallback<Difficulty> OnDifficultyChanged { get; set; }
+
+    private void HandleModeChange(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<GameMode>(e.Value?.ToString(), out var mode))
+            OnModeChanged.InvokeAsync(mode);
+    }
+
+    private void HandleDifficultyChange(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<Difficulty>(e.Value?.ToString(), out var diff))
+            OnDifficultyChanged.InvokeAsync(diff);
+    }
+}

@@ -1,0 +1,29 @@
+# Build outputs
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+
+# NuGet
+*.nupkg
+packages/
+project.lock.json
+project.assets.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test results
+TestResults/
+coverage/
+*.coverage
+
+# Rider
+.idea/
+
+# Secrets / local config
+appsettings.Development.json
+*.pfx

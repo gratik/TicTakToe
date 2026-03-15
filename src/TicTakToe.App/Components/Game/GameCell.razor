@@ -1,0 +1,46 @@
+@* A single board cell. Renders X, O, or empty. Animates on mark. *@
+<button class="cell @CssClass"
+        @onclick="OnClick"
+        disabled="@(!IsClickable)"
+        aria-label="Cell @Index">
+    <span class="cell-mark">@Symbol</span>
+</button>
+
+@code {
+    /// <summary>Cell index (0–8).</summary>
+    [Parameter] public int Index { get; set; }
+
+    /// <summary>The player who owns this cell, or <c>None</c> if empty.</summary>
+    [Parameter] public Player Value { get; set; }
+
+    /// <summary>Whether this cell is part of the winning line.</summary>
+    [Parameter] public bool IsWinningCell { get; set; }
+
+    /// <summary>Whether the cell can be clicked (game in progress, empty cell, human turn).</summary>
+    [Parameter] public bool IsClickable { get; set; }
+
+    /// <summary>Raised when the user clicks this cell.</summary>
+    [Parameter] public EventCallback<int> OnCellClick { get; set; }
+
+    private string Symbol => Value switch
+    {
+        Player.X => "X",
+        Player.O => "O",
+        _ => ""
+    };
+
+    private string CssClass
+    {
+        get
+        {
+            var classes = new List<string>();
+            if (Value == Player.X) classes.Add("cell-x");
+            if (Value == Player.O) classes.Add("cell-o");
+            if (IsWinningCell) classes.Add("cell-win");
+            if (IsClickable) classes.Add("cell-clickable");
+            return string.Join(" ", classes);
+        }
+    }
+
+    private void OnClick() => OnCellClick.InvokeAsync(Index);
+}

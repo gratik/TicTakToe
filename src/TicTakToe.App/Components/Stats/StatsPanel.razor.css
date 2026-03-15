@@ -1,0 +1,57 @@
+/* ── StatsPanel ──────────────────────────────────────────────────── */
+.stats-panel {
+    width: min(360px, 90vw);
+}
+
+.stats-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.stats-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.stats-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    gap: 0.5rem;
+}
+
+.stats-row:last-child { border-bottom: none; }
+
+.stats-row-active .mode-label { color: var(--accent); font-weight: 700; }
+
+.mode-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.stat-chips {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.chip {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.5rem;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+
+.chip-win  { background: rgba(72, 187, 120, 0.15); color: #276749; }
+.chip-loss { background: rgba(245, 101, 101, 0.15); color: #9b2c2c; }
+.chip-draw { background: rgba(160, 174, 192, 0.15); color: var(--text-secondary); }
+
+[data-theme="dark"] .chip-win  { color: #9ae6b4; }
+[data-theme="dark"] .chip-loss { color: #fc8181; }

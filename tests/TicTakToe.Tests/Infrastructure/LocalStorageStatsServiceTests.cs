@@ -98,4 +98,16 @@ public class LocalStorageStatsServiceTests
         Assert.Equal(2, stats.Wins);
         Assert.Equal(1, stats.Losses);
     }
+
+    [Fact]
+    public async Task GetStatsAsync_ReturnsEmpty_WhenJsonDeserializesToNull()
+    {
+        var (service, store) = CreateService();
+        // "null" is valid JSON that deserialises to null for a reference type
+        store["ttt_stats_PvP"] = "null";
+
+        var stats = await service.GetStatsAsync(GameMode.PvP);
+
+        Assert.Equal(GameStats.Empty, stats);
+    }
 }

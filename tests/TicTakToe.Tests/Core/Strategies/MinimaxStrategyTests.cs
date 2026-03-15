@@ -11,6 +11,17 @@ public class MinimaxStrategyTests
     }
 
     [Fact]
+    public void ChooseMove_Throws_WhenBoardIsFull()
+    {
+        var board = new Board();
+        // Fill every cell so no moves remain
+        for (int i = 0; i < 9; i++)
+            board.MakeMove(i, i % 2 == 0 ? Player.X : Player.O);
+
+        Assert.Throws<InvalidOperationException>(() => _strategy.ChooseMove(board, Player.X));
+    }
+
+    [Fact]
     public void ChooseMove_WinsImmediately_WhenWinAvailable()
     {
         var board = new Board();

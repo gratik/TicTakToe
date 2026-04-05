@@ -2,20 +2,31 @@
 @rendermode InteractiveServer
 @inject IGameEngine Engine
 @inject IStatsService StatsService
+@inject ILogger<Home> Logger
 @implements IDisposable
+
+@using TicTakToe.App.Core.Models
 
 <PageTitle>Tic-Tac-Toe</PageTitle>
 
 <div class="game-layout">
     <div class="game-column">
         <div class="card game-card">
+            <div class="camera-overlay @CameraOverlayClass" aria-hidden="@(!CameraOverlayActive)">
+                <span class="camera-overlay-text">@(_cameraOverlayText ?? string.Empty)</span>
+            </div>
+            <div class="camera-cue" aria-live="polite">
+                @(_cameraCueMessage ?? (_mode == GameMode.CvC ? "CvC cameras are ready." : "Switch to CvC to activate cinematic cues."))
+            </div>
             <GameStatus Engine="Engine" />
             <GameBoard Engine="Engine" OnHumanMove="HandleHumanMove" />
             <GameControls Mode="_mode"
                           Difficulty="_difficulty"
+                          BoardSize="_boardSize"
                           OnNewGame="StartNewGame"
                           OnModeChanged="HandleModeChanged"
-                          OnDifficultyChanged="HandleDifficultyChanged" />
+                          OnDifficultyChanged="HandleDifficultyChanged"
+                          OnBoardSizeChanged="HandleBoardSizeChanged" />
         </div>
     </div>
     <div class="stats-column">
@@ -26,9 +37,13 @@
 @code {
     private GameMode _mode = GameMode.PvP;
     private Difficulty _difficulty = Difficulty.Medium;
+    private int _boardSize = 3;
     private StatsPanel? _statsPanel;
     private CancellationTokenSource? _cts;
+    private Task? _scheduledTask;
     private bool _resultPersisted;
+
+    private BoardConfiguration BoardConfig => new(_boardSize, _boardSize);
 
     // CvC speed acceleration
     private const int CvcStartDelay = 600;
@@ -36,37 +51,72 @@
     private const double CvcDecayFactor = 0.75;
     private int _cvcMoveDelay = CvcStartDelay;
 
+    private const int CameraFlashDurationMs = 1400;
+    private const int VictoryHoldDurationMs = 1000;
+    private const int DramaticHoldBonusMs = 600;
+
+    private bool _showCameraFlash;
+    private bool _showVictoryHold;
+    private CancellationTokenSource? _cameraHighlightCts;
+    private string? _cameraOverlayText;
+    private string? _cameraCueMessage;
+    private bool _dramaticWinPending;
+
+    private string CameraOverlayClass => _showCameraFlash ? "active flash" : _showVictoryHold ? "active hold" : string.Empty;
+    private bool CameraOverlayActive => _showCameraFlash || _showVictoryHold;
+
     protected override void OnInitialized()
     {
-        Engine.StartGame(_mode, _difficulty);
+        Engine.StartGame(_mode, _difficulty, BoardConfig);
         Engine.GameStateChanged += OnGameStateChanged;
     }
 
-    private async void OnGameStateChanged()
+    private async Task OnGameStateChanged()
     {
         await InvokeAsync(async () =>
         {
             try
             {
                 StateHasChanged();
+
                 if (Engine.Result != GameResult.InProgress)
                 {
                     await PersistResultAsync();
                     if (_statsPanel is not null)
                         await _statsPanel.RefreshAsync();
 
-                    // CvC: decay speed and auto-start next game
                     if (_mode == GameMode.CvC)
                     {
+                        var dramaticHold = _dramaticWinPending;
                         _cvcMoveDelay = Math.Max(CvcMinDelay, (int)(_cvcMoveDelay * CvcDecayFactor));
-                        ScheduleCvcRestart();
+                        var resultLabel = Engine.Result switch
+                        {
+                            GameResult.XWins => GetPlayerLabel(Player.X),
+                            GameResult.OWins => GetPlayerLabel(Player.O),
+                            _ => "Draw"
+                        };
+                        _cameraCueMessage = $"Camera hold: {resultLabel} – next cycle {_cvcMoveDelay}ms";
+
+                        if (dramaticHold && (Engine.Result == GameResult.XWins || Engine.Result == GameResult.OWins))
+                            ShowVictoryHoldOverlay("Victory hold", $"Camera hold: {resultLabel} wins");
+
+                        ScheduleCvcRestart(dramaticHold);
                     }
+                }
+                else if (_mode == GameMode.CvC)
+                {
+                    var lastPlayer = Engine.CurrentPlayer == Player.X ? Player.O : Player.X;
+                    if (TryTriggerForkHighlight(lastPlayer))
+                        _cameraCueMessage = $"{GetPlayerLabel(lastPlayer)} is setting up a fork";
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Exceptions must not propagate out of the async-void circuit handler.
-                _ = ex;
+                Logger.LogError(ex, "Unhandled exception while updating game state.");
+            }
+            finally
+            {
+                StateHasChanged();
             }
         });
     }
@@ -87,6 +137,13 @@
         StartNewGame();
     }
 
+    private void HandleBoardSizeChanged(int size)
+    {
+        if (size == _boardSize) return;
+        _boardSize = size;
+        StartNewGame();
+    }
+
     private void HandleDifficultyChanged(Difficulty difficulty)
     {
         _difficulty = difficulty;
@@ -97,9 +154,10 @@
     private void StartNewGame()
     {
         CancelScheduled();
+        ResetCameraState();
         _resultPersisted = false;
         _cvcMoveDelay = CvcStartDelay; // reset speed on manual new game
-        Engine.StartGame(_mode, _difficulty);
+        Engine.StartGame(_mode, _difficulty, BoardConfig);
 
         if (_mode == GameMode.CvC)
             ScheduleAiMove(_cvcMoveDelay);
@@ -116,13 +174,17 @@
         CancelScheduled();
         var cts = new CancellationTokenSource();
         _cts = cts;
-        _ = ExecuteAfterDelayAsync(delayMs, cts.Token, () =>
+        _scheduledTask = ExecuteAfterDelayAsync(delayMs, cts.Token, () =>
         {
-            if (Engine.Result != GameResult.InProgress) return;
+            if (Engine.Result != GameResult.InProgress)
+                return Task.CompletedTask;
+
             Engine.TriggerAiMove();
 
             if (_mode == GameMode.CvC && Engine.Result == GameResult.InProgress)
                 ScheduleAiMove(_cvcMoveDelay);
+
+            return Task.CompletedTask;
         });
     }
 
@@ -130,24 +192,140 @@
     /// After a CvC game ends, waits a beat then auto-starts the next game.
     /// No-ops if the user has switched mode.
     /// </summary>
-    private void ScheduleCvcRestart()
+    private void ScheduleCvcRestart(bool dramaticHold = false)
     {
         // Pause between games = 3× the current move delay (min 120 ms) so the result is briefly visible
         int pauseMs = Math.Max(120, _cvcMoveDelay * 3);
+        if (dramaticHold)
+            pauseMs += DramaticHoldBonusMs;
         CancelScheduled();
         var cts = new CancellationTokenSource();
         _cts = cts;
-        _ = ExecuteAfterDelayAsync(pauseMs, cts.Token, () =>
+        _scheduledTask = ExecuteAfterDelayAsync(pauseMs, cts.Token, () =>
         {
-            if (_mode != GameMode.CvC) return;
+            if (_mode != GameMode.CvC)
+                return Task.CompletedTask;
+
             _resultPersisted = false;
-            Engine.StartGame(GameMode.CvC, _difficulty);
+            ResetCameraState();
+            Engine.StartGame(GameMode.CvC, _difficulty, BoardConfig);
             ScheduleAiMove(_cvcMoveDelay);
+
+            return Task.CompletedTask;
+        });
+
+        _dramaticWinPending = false;
+    }
+
+    private void ResetCameraState()
+    {
+        CancelCameraHighlight();
+        _cameraCueMessage = null;
+        _cameraOverlayText = null;
+        _showCameraFlash = false;
+        _showVictoryHold = false;
+        _dramaticWinPending = false;
+    }
+
+    private void TriggerCameraFlashOverlay(string overlayText, string cueMessage)
+    {
+        CancelCameraHighlight();
+        _showVictoryHold = false;
+        _showCameraFlash = true;
+        _cameraOverlayText = overlayText;
+        _cameraCueMessage = cueMessage;
+        StateHasChanged();
+
+        var cts = new CancellationTokenSource();
+        _cameraHighlightCts = cts;
+        _ = ExecuteAfterDelayAsync(CameraFlashDurationMs, cts.Token, () =>
+        {
+            _showCameraFlash = false;
+            _cameraOverlayText = null;
+            StateHasChanged();
+
+            if (_cameraHighlightCts == cts)
+                _cameraHighlightCts = null;
+            cts.Dispose();
+            return Task.CompletedTask;
         });
     }
 
+    private void ShowVictoryHoldOverlay(string overlayText, string cueMessage)
+    {
+        CancelCameraHighlight();
+        _showCameraFlash = false;
+        _showVictoryHold = true;
+        _cameraOverlayText = overlayText;
+        _cameraCueMessage = cueMessage;
+        StateHasChanged();
+
+        var cts = new CancellationTokenSource();
+        _cameraHighlightCts = cts;
+        _ = ExecuteAfterDelayAsync(VictoryHoldDurationMs, cts.Token, () =>
+        {
+            _showVictoryHold = false;
+            _cameraOverlayText = null;
+            StateHasChanged();
+
+            if (_cameraHighlightCts == cts)
+                _cameraHighlightCts = null;
+            cts.Dispose();
+            return Task.CompletedTask;
+        });
+    }
+
+    private void CancelCameraHighlight()
+    {
+        if (_cameraHighlightCts is null)
+            return;
+
+        _cameraHighlightCts.Cancel();
+        _cameraHighlightCts.Dispose();
+        _cameraHighlightCts = null;
+        _showCameraFlash = false;
+        _showVictoryHold = false;
+        _cameraOverlayText = null;
+    }
+
+    private bool TryTriggerForkHighlight(Player player)
+    {
+        if (!HasForkOpportunity(player))
+            return false;
+
+        _dramaticWinPending = true;
+        TriggerCameraFlashOverlay("Strategic fork", $"{GetPlayerLabel(player)} is creating a fork");
+        return true;
+    }
+
+    private bool HasForkOpportunity(Player player)
+    {
+        var board = Engine.Board;
+        var availableMoves = board.GetAvailableMoves();
+        if (availableMoves.Count < 2)
+            return false;
+
+        var winningResult = player == Player.X ? GameResult.XWins : GameResult.OWins;
+        int winCount = 0;
+        foreach (var move in availableMoves)
+        {
+            var clone = board.Clone();
+            clone.MakeMove(move, player);
+            if (clone.CheckResult() == winningResult)
+            {
+                winCount++;
+                if (winCount >= 2)
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetPlayerLabel(Player player) => player == Player.X ? "X (AI)" : "O (AI)";
+
     /// <summary>Awaits <paramref name="delayMs"/> then dispatches <paramref name="action"/> on the circuit thread.</summary>
-    private async Task ExecuteAfterDelayAsync(int delayMs, CancellationToken token, Action action)
+    private async Task ExecuteAfterDelayAsync(int delayMs, CancellationToken token, Func<Task> action)
     {
         try
         {
@@ -157,7 +335,14 @@
         {
             return;
         }
-        await InvokeAsync(action);
+        try
+        {
+            await InvokeAsync(action);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogError(ex, "Unhandled exception while running scheduled action.");
+        }
     }
 
     private void CancelScheduled()
@@ -165,6 +350,7 @@
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;
+        _scheduledTask = null;
     }
 
     private async Task PersistResultAsync()
@@ -172,29 +358,16 @@
         if (_resultPersisted) return;
         _resultPersisted = true;
 
-        switch (_mode)
+        switch (Engine.Result)
         {
-            case GameMode.PvP:
-                if (Engine.Result == GameResult.Draw)
-                    await StatsService.IncrementDrawAsync(_mode);
-                else
-                    await StatsService.IncrementWinAsync(_mode);
+            case GameResult.Draw:
+                await StatsService.IncrementDrawAsync(_mode);
                 break;
-
-            case GameMode.PvC:
-                if (Engine.Result == GameResult.Draw)
-                    await StatsService.IncrementDrawAsync(_mode);
-                else if (Engine.Result == GameResult.XWins) // human is X
-                    await StatsService.IncrementWinAsync(_mode);
-                else
-                    await StatsService.IncrementLossAsync(_mode);
+            case GameResult.XWins:
+                await StatsService.IncrementWinAsync(_mode);
                 break;
-
-            case GameMode.CvC:
-                if (Engine.Result == GameResult.Draw)
-                    await StatsService.IncrementDrawAsync(_mode);
-                else
-                    await StatsService.IncrementWinAsync(_mode);
+            case GameResult.OWins:
+                await StatsService.IncrementLossAsync(_mode);
                 break;
         }
     }
@@ -203,5 +376,6 @@
     {
         Engine.GameStateChanged -= OnGameStateChanged;
         CancelScheduled();
+        CancelCameraHighlight();
     }
 }

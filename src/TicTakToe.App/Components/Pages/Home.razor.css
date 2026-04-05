@@ -16,8 +16,62 @@
 }
 
 .game-card {
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 1rem;
     width: min(360px, 90vw);
+}
+
+.camera-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    z-index: 1;
+    color: #fff;
+}
+
+.camera-overlay.active {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.camera-overlay.flash {
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 60%);
+    mix-blend-mode: screen;
+}
+
+.camera-overlay.hold {
+    background: linear-gradient(125deg, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.2));
+}
+
+.camera-overlay-text {
+    padding: 0.35rem 0.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px);
+}
+
+.camera-cue {
+    position: absolute;
+    top: 0.75rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--app-text-muted, #8c8c99);
+    pointer-events: none;
+    z-index: 2;
 }

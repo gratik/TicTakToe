@@ -127,4 +127,34 @@ public class GameControlsTests : BunitContext
 
         Assert.Equal(Difficulty.Medium, received);
     }
+
+    [Fact]
+    public void BoardSizeSelect_HasThreeOptions()
+    {
+        var cut = Render<GameControls>(p => p
+            .Add(c => c.Mode, GameMode.PvP)
+            .Add(c => c.Difficulty, Difficulty.Medium));
+
+        var options = cut.FindAll("#board-size-select option");
+
+        Assert.Equal(3, options.Count);
+        Assert.Equal("3×3 (three in a row)", options[0].TextContent);
+        Assert.Equal("4×4 (four in a row)", options[1].TextContent);
+        Assert.Equal("5×5 (five in a row)", options[2].TextContent);
+    }
+
+    [Fact]
+    public void BoardSizeSelect_Change_Fires_OnBoardSizeChanged()
+    {
+        int? received = null;
+        var cut = Render<GameControls>(p => p
+            .Add(c => c.Mode, GameMode.PvP)
+            .Add(c => c.Difficulty, Difficulty.Medium)
+            .Add(c => c.BoardSize, 3)
+            .Add(c => c.OnBoardSizeChanged, EventCallback.Factory.Create<int>(this, (int size) => received = size)));
+
+        cut.Find("#board-size-select").Change("5");
+
+        Assert.Equal(5, received);
+    }
 }

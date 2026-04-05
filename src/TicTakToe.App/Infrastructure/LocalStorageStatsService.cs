@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using TicTakToe.App.Core.Models;
 using TicTakToe.App.Core.Services.Interfaces;
@@ -12,25 +14,45 @@ namespace TicTakToe.App.Infrastructure;
 public sealed class LocalStorageStatsService : IStatsService
 {
     private readonly IJSRuntime _js;
+    private readonly ILogger<LocalStorageStatsService> _logger;
+    private readonly Dictionary<GameMode, GameStats> _cache = new();
 
     /// <summary>Initialises a new instance backed by the provided <see cref="IJSRuntime"/>.</summary>
-    public LocalStorageStatsService(IJSRuntime js) => _js = js;
+    public LocalStorageStatsService(IJSRuntime js, ILogger<LocalStorageStatsService> logger)
+    {
+        _js = js;
+        _logger = logger;
+        foreach (GameMode mode in Enum.GetValues<GameMode>())
+            _cache[mode] = GameStats.Empty;
+    }
 
     /// <inheritdoc/>
     public async Task<GameStats> GetStatsAsync(GameMode mode)
     {
-        var json = await _js.InvokeAsync<string?>("tttStorage.getItem", Key(mode));
-        if (string.IsNullOrEmpty(json)) return GameStats.Empty;
-
         try
         {
-            return JsonSerializer.Deserialize<GameStats>(json) ?? GameStats.Empty;
+            var json = await _js.InvokeAsync<string?>("tttStorage.getItem", Key(mode));
+            if (string.IsNullOrEmpty(json))
+                return _cache[mode];
+
+            try
+            {
+                var stats = JsonSerializer.Deserialize<GameStats>(json) ?? GameStats.Empty;
+                _cache[mode] = stats;
+                return stats;
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Corrupted stats payload for {Mode}; resetting stored value.", mode);
+                await SafeRemoveAsync(mode);
+                _cache[mode] = GameStats.Empty;
+                return GameStats.Empty;
+            }
         }
-        catch (JsonException)
+        catch (JSException ex)
         {
-            // Self-heal: remove the corrupted entry so it doesn't fail on every load.
-            await _js.InvokeVoidAsync("tttStorage.removeItem", Key(mode));
-            return GameStats.Empty;
+            _logger.LogWarning(ex, "Unable to read stats from localStorage for {Mode}; using in-memory cache.", mode);
+            return _cache[mode];
         }
     }
 
@@ -59,14 +81,37 @@ public sealed class LocalStorageStatsService : IStatsService
     public async Task ResetAllAsync()
     {
         foreach (GameMode mode in Enum.GetValues<GameMode>())
-            await _js.InvokeVoidAsync("tttStorage.removeItem", Key(mode));
+        {
+            _cache[mode] = GameStats.Empty;
+            await SafeRemoveAsync(mode);
+        }
     }
 
     private async Task SaveAsync(GameMode mode, GameStats stats)
     {
+        _cache[mode] = stats;
         var json = JsonSerializer.Serialize(stats);
-        await _js.InvokeVoidAsync("tttStorage.setItem", Key(mode), json);
+        try
+        {
+            await _js.InvokeVoidAsync("tttStorage.setItem", Key(mode), json);
+        }
+        catch (JSException ex)
+        {
+            _logger.LogWarning(ex, "Unable to persist stats for {Mode}; keeping in-memory cache.", mode);
+        }
     }
 
     private static string Key(GameMode mode) => $"ttt_stats_{mode}";
+
+    private async Task SafeRemoveAsync(GameMode mode)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync("tttStorage.removeItem", Key(mode));
+        }
+        catch (JSException ex)
+        {
+            _logger.LogWarning(ex, "Unable to remove stored stats for {Mode}.", mode);
+        }
+    }
 }

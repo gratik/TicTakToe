@@ -12,6 +12,7 @@
     transition: background var(--transition), color var(--transition);
     border: 1px solid var(--border);
     background: var(--surface-alt);
+    color: var(--text-primary);
 }
 
 .status-icon { font-size: 1.2rem; line-height: 1; }

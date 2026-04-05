@@ -18,6 +18,14 @@
                 <option value="@Difficulty.Hard">Hard</option>
             </select>
         </div>
+        <div class="control-group">
+            <label for="board-size-select">Board size</label>
+            <select id="board-size-select" value="@BoardSize" @onchange="HandleBoardSizeChange">
+                <option value="3">3×3 (three in a row)</option>
+                <option value="4">4×4 (four in a row)</option>
+                <option value="5">5×5 (five in a row)</option>
+            </select>
+        </div>
     </div>
     <button class="btn btn-primary" @onclick="OnNewGame">New Game</button>
 </div>
@@ -29,6 +37,9 @@
     /// <summary>The currently selected difficulty.</summary>
     [Parameter] public Difficulty Difficulty { get; set; }
 
+    /// <summary>The currently selected board size.</summary>
+    [Parameter] public int BoardSize { get; set; } = 3;
+
     /// <summary>Raised when the user requests a new game.</summary>
     [Parameter] public EventCallback OnNewGame { get; set; }
 
@@ -37,6 +48,9 @@
 
     /// <summary>Raised when the user changes the difficulty.</summary>
     [Parameter] public EventCallback<Difficulty> OnDifficultyChanged { get; set; }
+
+    /// <summary>Raised when the user changes the board size.</summary>
+    [Parameter] public EventCallback<int> OnBoardSizeChanged { get; set; }
 
     private void HandleModeChange(ChangeEventArgs e)
     {
@@ -48,5 +62,11 @@
     {
         if (Enum.TryParse<Difficulty>(e.Value?.ToString(), out var diff))
             OnDifficultyChanged.InvokeAsync(diff);
+    }
+
+    private void HandleBoardSizeChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var size))
+            OnBoardSizeChanged.InvokeAsync(size);
     }
 }

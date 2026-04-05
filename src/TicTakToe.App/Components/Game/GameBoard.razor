@@ -1,6 +1,7 @@
 @* Renders the 3×3 game grid. *@
-<div class="board" role="grid" aria-label="Tic-Tac-Toe board">
-    @for (int i = 0; i < 9; i++)
+<div class="board" role="grid" aria-label="Tic-Tac-Toe board"
+     style="@($"grid-template-columns: repeat({Engine.Board.Size}, 1fr);")">
+    @for (int i = 0; i < Engine.Board.Cells.Count; i++)
     {
         var index = i; // capture for lambda
         <GameCell Index="index"

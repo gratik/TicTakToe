@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using TicTakToe.App.Infrastructure;
 
@@ -31,7 +32,8 @@ public class LocalStorageStatsServiceTests
                 store.Remove((string)args[0]!))
             .ReturnsAsync(Mock.Of<Microsoft.JSInterop.Infrastructure.IJSVoidResult>());
 
-        return (new LocalStorageStatsService(jsMock.Object), store);
+        var logger = Mock.Of<ILogger<LocalStorageStatsService>>();
+        return (new LocalStorageStatsService(jsMock.Object, logger), store);
     }
 
     [Fact]

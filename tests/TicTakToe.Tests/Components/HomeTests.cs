@@ -1,13 +1,15 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TicTakToe.App.Components.Pages;
+using TicTakToe.App.Core.Models;
 
 namespace TicTakToe.Tests.Components;
 
 public class HomeTests : BunitContext
 {
-    private Action? _capturedHandler;
+    private Func<Task>? _capturedHandler;
     private GameResult _engineResult = GameResult.InProgress;
 
     private (Mock<IGameEngine> engine, Mock<IStatsService> stats) SetupServices(
@@ -23,9 +25,9 @@ public class HomeTests : BunitContext
         engineMock.Setup(e => e.CurrentPlayer).Returns(currentPlayer);
         engineMock.Setup(e => e.Mode).Returns(mode);
         engineMock.Setup(e => e.Difficulty).Returns(Difficulty.Medium);
-        engineMock.SetupAdd(e => e.GameStateChanged += It.IsAny<Action>())
-            .Callback<Action>(h => _capturedHandler = h);
-        engineMock.SetupRemove(e => e.GameStateChanged -= It.IsAny<Action>());
+        engineMock.SetupAdd(e => e.GameStateChanged += It.IsAny<Func<Task>>())
+            .Callback<Func<Task>>(h => _capturedHandler = h);
+        engineMock.SetupRemove(e => e.GameStateChanged -= It.IsAny<Func<Task>>());
 
         var statsMock = new Mock<IStatsService>();
         statsMock.Setup(s => s.GetStatsAsync(It.IsAny<GameMode>())).ReturnsAsync(GameStats.Empty);
@@ -36,9 +38,13 @@ public class HomeTests : BunitContext
 
         Services.AddSingleton(engineMock.Object);
         Services.AddSingleton(statsMock.Object);
+        Services.AddSingleton(Mock.Of<ILogger<Home>>());
 
         return (engineMock, statsMock);
     }
+
+    private Task InvokeCapturedHandlerAsync() =>
+        _capturedHandler?.Invoke() ?? Task.CompletedTask;
 
     // ── Initialisation ───────────────────────────────────────────────────────
 
@@ -49,7 +55,8 @@ public class HomeTests : BunitContext
 
         Render<Home>();
 
-        engine.Verify(e => e.StartGame(GameMode.PvP, Difficulty.Medium), Times.Once);
+        engine.Verify(e => e.StartGame(GameMode.PvP, Difficulty.Medium,
+            It.Is<BoardConfiguration>(c => c.Size == 3 && c.WinLength == 3)), Times.Once);
     }
 
     [Fact]
@@ -59,7 +66,7 @@ public class HomeTests : BunitContext
 
         Render<Home>();
 
-        engine.VerifyAdd(e => e.GameStateChanged += It.IsAny<Action>(), Times.Once);
+        engine.VerifyAdd(e => e.GameStateChanged += It.IsAny<Func<Task>>(), Times.Once);
     }
 
     // ── HandleHumanMove ──────────────────────────────────────────────────────
@@ -96,7 +103,8 @@ public class HomeTests : BunitContext
 
         cut.Find("#mode-select").Change("PvC");
 
-        engine.Verify(e => e.StartGame(GameMode.PvC, It.IsAny<Difficulty>()), Times.Once);
+        engine.Verify(e => e.StartGame(GameMode.PvC, It.IsAny<Difficulty>(),
+            It.Is<BoardConfiguration>(c => c.Size == 3 && c.WinLength == 3)), Times.Once);
     }
 
     [Fact]
@@ -107,7 +115,8 @@ public class HomeTests : BunitContext
 
         cut.Find("#mode-select").Change("CvC");
 
-        engine.Verify(e => e.StartGame(GameMode.CvC, It.IsAny<Difficulty>()), Times.Once);
+        engine.Verify(e => e.StartGame(GameMode.CvC, It.IsAny<Difficulty>(),
+            It.Is<BoardConfiguration>(c => c.Size == 3 && c.WinLength == 3)), Times.Once);
     }
 
     // ── HandleDifficultyChanged ──────────────────────────────────────────────
@@ -120,7 +129,20 @@ public class HomeTests : BunitContext
 
         cut.Find("#diff-select").Change("Hard");
 
-        engine.Verify(e => e.StartGame(It.IsAny<GameMode>(), Difficulty.Hard), Times.Once);
+        engine.Verify(e => e.StartGame(It.IsAny<GameMode>(), Difficulty.Hard,
+            It.Is<BoardConfiguration>(c => c.Size == 3 && c.WinLength == 3)), Times.Once);
+    }
+
+    [Fact]
+    public void HandleBoardSizeChanged_UpdatesSizeAndStartsNewGame()
+    {
+        var (engine, _) = SetupServices();
+        var cut = Render<Home>();
+
+        cut.Find("#board-size-select").Change("4");
+
+        engine.Verify(e => e.StartGame(It.IsAny<GameMode>(), It.IsAny<Difficulty>(),
+            It.Is<BoardConfiguration>(c => c.Size == 4 && c.WinLength == 4)), Times.AtLeastOnce());
     }
 
     // ── New Game button ──────────────────────────────────────────────────────
@@ -134,7 +156,7 @@ public class HomeTests : BunitContext
         cut.Find("button.btn-primary").Click();
 
         // Called once on init, once on button click
-        engine.Verify(e => e.StartGame(It.IsAny<GameMode>(), It.IsAny<Difficulty>()), Times.AtLeast(2));
+        engine.Verify(e => e.StartGame(It.IsAny<GameMode>(), It.IsAny<Difficulty>(), It.IsAny<BoardConfiguration>()), Times.AtLeast(2));
     }
 
     // ── PersistResultAsync — PvP ─────────────────────────────────────────────
@@ -146,8 +168,7 @@ public class HomeTests : BunitContext
         Render<Home>();
 
         _engineResult = GameResult.Draw;
-        _capturedHandler?.Invoke();
-        await Task.Delay(50);
+        await InvokeCapturedHandlerAsync();
 
         stats.Verify(s => s.IncrementDrawAsync(GameMode.PvP), Times.Once);
     }
@@ -159,23 +180,21 @@ public class HomeTests : BunitContext
         Render<Home>();
 
         _engineResult = GameResult.XWins;
-        _capturedHandler?.Invoke();
-        await Task.Delay(50);
+        await InvokeCapturedHandlerAsync();
 
         stats.Verify(s => s.IncrementWinAsync(GameMode.PvP), Times.Once);
     }
 
     [Fact]
-    public async Task PersistResultAsync_PvP_OWins_CallsIncrementWin()
+    public async Task PersistResultAsync_PvP_OWins_CallsIncrementLoss()
     {
         var (_, stats) = SetupServices();
         Render<Home>();
 
         _engineResult = GameResult.OWins;
-        _capturedHandler?.Invoke();
-        await Task.Delay(50);
+        await InvokeCapturedHandlerAsync();
 
-        stats.Verify(s => s.IncrementWinAsync(GameMode.PvP), Times.Once);
+        stats.Verify(s => s.IncrementLossAsync(GameMode.PvP), Times.Once);
     }
 
     // ── PersistResultAsync — PvC ─────────────────────────────────────────────
@@ -188,8 +207,7 @@ public class HomeTests : BunitContext
         cut.Find("#mode-select").Change("PvC"); // sets _mode = PvC in component
 
         _engineResult = GameResult.XWins;
-        _capturedHandler?.Invoke();
-        await Task.Delay(50);
+        await InvokeCapturedHandlerAsync();
 
         stats.Verify(s => s.IncrementWinAsync(GameMode.PvC), Times.Once);
     }
@@ -202,8 +220,7 @@ public class HomeTests : BunitContext
         cut.Find("#mode-select").Change("PvC");
 
         _engineResult = GameResult.OWins;
-        _capturedHandler?.Invoke();
-        await Task.Delay(50);
+        await InvokeCapturedHandlerAsync();
 
         stats.Verify(s => s.IncrementLossAsync(GameMode.PvC), Times.Once);
     }
@@ -216,8 +233,7 @@ public class HomeTests : BunitContext
         cut.Find("#mode-select").Change("PvC");
 
         _engineResult = GameResult.Draw;
-        _capturedHandler?.Invoke();
-        await Task.Delay(50);
+        await InvokeCapturedHandlerAsync();
 
         stats.Verify(s => s.IncrementDrawAsync(GameMode.PvC), Times.Once);
     }
@@ -232,8 +248,7 @@ public class HomeTests : BunitContext
         cut.Find("#mode-select").Change("CvC");
 
         _engineResult = GameResult.XWins;
-        _capturedHandler?.Invoke();
-        await Task.Delay(50);
+        await InvokeCapturedHandlerAsync();
 
         stats.Verify(s => s.IncrementWinAsync(GameMode.CvC), Times.Once);
     }
@@ -246,8 +261,7 @@ public class HomeTests : BunitContext
         cut.Find("#mode-select").Change("CvC");
 
         _engineResult = GameResult.Draw;
-        _capturedHandler?.Invoke();
-        await Task.Delay(50);
+        await InvokeCapturedHandlerAsync();
 
         stats.Verify(s => s.IncrementDrawAsync(GameMode.CvC), Times.Once);
     }
@@ -262,7 +276,7 @@ public class HomeTests : BunitContext
 
         cut.Instance.Dispose();
 
-        engine.VerifyRemove(e => e.GameStateChanged -= It.IsAny<Action>(), Times.Once);
+        engine.VerifyRemove(e => e.GameStateChanged -= It.IsAny<Func<Task>>(), Times.Once);
     }
 
     [Fact]
@@ -272,9 +286,8 @@ public class HomeTests : BunitContext
         Render<Home>();
 
         _engineResult = GameResult.XWins;
-        _capturedHandler?.Invoke();
-        _capturedHandler?.Invoke(); // second fire — should not double-write
-        await Task.Delay(80);
+        await InvokeCapturedHandlerAsync();
+        await InvokeCapturedHandlerAsync(); // second fire — should not double-write
 
         stats.Verify(s => s.IncrementWinAsync(GameMode.PvP), Times.Once);
     }

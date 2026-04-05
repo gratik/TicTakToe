@@ -1,5 +1,7 @@
+using System.Linq;
 using TicTakToe.App.Core.Models;
 using TicTakToe.App.Core.Services.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace TicTakToe.App.Core.Services;
 
@@ -10,12 +12,15 @@ namespace TicTakToe.App.Core.Services;
 public sealed class GameEngine : IGameEngine
 {
     private readonly IAiPlayer _aiPlayer;
+    private readonly ILogger<GameEngine> _logger;
 
     /// <summary>Initialises a new <see cref="GameEngine"/> with the supplied AI player.</summary>
-    public GameEngine(IAiPlayer aiPlayer)
+    public GameEngine(IAiPlayer aiPlayer, ILogger<GameEngine> logger)
     {
         _aiPlayer = aiPlayer;
+        _logger = logger;
         Board = new Board();
+        CurrentConfiguration = BoardConfiguration.Default;
     }
 
     /// <inheritdoc/>
@@ -34,17 +39,21 @@ public sealed class GameEngine : IGameEngine
     public Difficulty Difficulty { get; private set; } = Difficulty.Medium;
 
     /// <inheritdoc/>
-    public event Action? GameStateChanged;
+    public BoardConfiguration CurrentConfiguration { get; private set; }
 
     /// <inheritdoc/>
-    public void StartGame(GameMode mode, Difficulty difficulty)
+    public event Func<Task>? GameStateChanged;
+
+    /// <inheritdoc/>
+    public void StartGame(GameMode mode, Difficulty difficulty, BoardConfiguration configuration)
     {
-        Board = new Board();
+        Board = new Board(configuration);
+        CurrentConfiguration = configuration;
         CurrentPlayer = Player.X;
         Result = GameResult.InProgress;
         Mode = mode;
         Difficulty = difficulty;
-        GameStateChanged?.Invoke();
+        NotifyGameStateChanged();
     }
 
     /// <inheritdoc/>
@@ -75,6 +84,28 @@ public sealed class GameEngine : IGameEngine
         if (Result == GameResult.InProgress)
             CurrentPlayer = CurrentPlayer == Player.X ? Player.O : Player.X;
 
-        GameStateChanged?.Invoke();
+        NotifyGameStateChanged();
+    }
+
+    private void NotifyGameStateChanged()
+    {
+        var handlers = GameStateChanged?.GetInvocationList().OfType<Func<Task>>().ToArray();
+        if (handlers is null || handlers.Length == 0)
+            return;
+
+        foreach (var handler in handlers)
+            _ = InvokeHandlerAsync(handler);
+    }
+
+    private async Task InvokeHandlerAsync(Func<Task> handler)
+    {
+        try
+        {
+            await handler().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Game state change handler threw an exception.");
+        }
     }
 }

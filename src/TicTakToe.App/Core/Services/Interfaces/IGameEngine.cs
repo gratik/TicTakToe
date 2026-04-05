@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using TicTakToe.App.Core.Models;
 
 namespace TicTakToe.App.Core.Services.Interfaces;
@@ -20,11 +22,14 @@ public interface IGameEngine
     /// <summary>The active AI difficulty.</summary>
     Difficulty Difficulty { get; }
 
+    /// <summary>The current board configuration.</summary>
+    BoardConfiguration CurrentConfiguration { get; }
+
     /// <summary>Raised whenever game state changes (move made, game over, new game).</summary>
-    event Action? GameStateChanged;
+    event Func<Task>? GameStateChanged;
 
     /// <summary>Starts a fresh game with the specified mode and difficulty.</summary>
-    void StartGame(GameMode mode, Difficulty difficulty);
+    void StartGame(GameMode mode, Difficulty difficulty, BoardConfiguration configuration);
 
     /// <summary>
     /// Applies a human move at <paramref name="index"/>.

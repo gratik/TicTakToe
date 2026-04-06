@@ -30,45 +30,45 @@
     <button class="btn btn-primary" @onclick="OnNewGame">New Game</button>
     @if (Mode == GameMode.PvC)
     {
-        <button class="btn btn-secondary" @onclick="() => OnHintRequested.InvokeAsync()" aria-label="Show AI hint">Hint</button>
+        <button class="btn btn-outline" @onclick="() => OnHintRequested.InvokeAsync()" aria-label="Show AI hint">Hint</button>
     }
-    <div class="player-customization" style="margin-top:1rem; display:flex; gap:1.5rem;">
-        <div>
-            <label for="player-x-name">Player X Name</label>
-            <input id="player-x-name" value="@PlayerXName" @oninput="HandlePlayerXNameInput" maxlength="12" />
-            <label for="player-x-color">Color</label>
-            <input id="player-x-color" type="color" value="@PlayerXColor" @oninput="HandlePlayerXColorInput" style="width:2rem; height:2rem; border:none;" />
-        </div>
-        <div>
-            <label for="player-o-name">Player O Name</label>
-            <input id="player-o-name" value="@PlayerOName" @oninput="HandlePlayerONameInput" maxlength="12" />
-            <label for="player-o-color">Color</label>
-            <input id="player-o-color" type="color" value="@PlayerOColor" @oninput="HandlePlayerOColorInput" style="width:2rem; height:2rem; border:none;" />
-        </div>
-        <div style="display:flex; flex-direction:column; justify-content:flex-end; min-width:10rem;">
-            <label for="ai-visualization-toggle" style="margin-bottom:0.25rem;">AI Visualization</label>
-            <input id="ai-visualization-toggle" type="checkbox" checked="@ShowAiVisualization" @onchange="OnAiVisualizationChangedHandler" />
-            @if (ShowAiVisualization)
-            {
-                <div style="margin-top:0.5rem;">
-                    <label for="ai-visualization-mode" style="font-size:0.9em;">Mode:</label>
-                    <select id="ai-visualization-mode" value="@VisualizationMode" @onchange="OnVisualizationModeChangedHandler" style="margin-left:0.5em;">
+    <details class="customization-details">
+        <summary>Customise players &amp; AI</summary>
+        <div class="player-customization">
+            <div class="player-custom-group">
+                <label for="player-x-name">X Name</label>
+                <input id="player-x-name" value="@PlayerXName" @oninput="HandlePlayerXNameInput" maxlength="12" class="name-input" />
+                <input id="player-x-color" type="color" value="@PlayerXColor" @oninput="HandlePlayerXColorInput" class="color-input" title="X colour" />
+            </div>
+            <div class="player-custom-group">
+                <label for="player-o-name">O Name</label>
+                <input id="player-o-name" value="@PlayerOName" @oninput="HandlePlayerONameInput" maxlength="12" class="name-input" />
+                <input id="player-o-color" type="color" value="@PlayerOColor" @oninput="HandlePlayerOColorInput" class="color-input" title="O colour" />
+            </div>
+            <div class="player-custom-group">
+                <label>
+                    <input id="ai-visualization-toggle" type="checkbox" checked="@ShowAiVisualization" @onchange="OnAiVisualizationChangedHandler" />
+                    AI overlay
+                </label>
+                @if (ShowAiVisualization)
+                {
+                    <select id="ai-visualization-mode" value="@VisualizationMode" @onchange="OnVisualizationModeChangedHandler">
                         <option value="Heatmap">Heatmap</option>
                         <option value="Step">Step</option>
                     </select>
-                </div>
-                @if (VisualizationMode == "Step")
-                {
-                    <div style="margin-top:0.5rem; display:flex; gap:0.5rem; align-items:center;">
-                        <button class="btn btn-sm" @onclick="OnStepPrev" aria-label="Previous step">&#8592;</button>
-                        <span style="font-size:0.9em;">Step @StepIndexDisplay</span>
-                        <button class="btn btn-sm" @onclick="OnStepNext" aria-label="Next step">&#8594;</button>
-                        <button class="btn btn-sm" @onclick="OnStepPlayPause" aria-label="Play/Pause">@PlayPauseIcon</button>
-                    </div>
+                    @if (VisualizationMode == "Step")
+                    {
+                        <div style="display:flex; gap:0.25rem; align-items:center;">
+                            <button class="btn btn-ghost" style="padding:0.15rem 0.5rem; font-size:0.8rem;" @onclick="OnStepPrev" aria-label="Previous step">&#8592;</button>
+                            <span style="font-size:0.85rem;">@StepIndexDisplay</span>
+                            <button class="btn btn-ghost" style="padding:0.15rem 0.5rem; font-size:0.8rem;" @onclick="OnStepNext" aria-label="Next step">&#8594;</button>
+                            <button class="btn btn-ghost" style="padding:0.15rem 0.5rem; font-size:0.8rem;" @onclick="OnStepPlayPause" aria-label="Play/Pause">@PlayPauseIcon</button>
+                        </div>
+                    }
                 }
-            }
+            </div>
         </div>
-    </div>
+    </details>
 </div>
 
 @code {

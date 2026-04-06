@@ -1,5 +1,5 @@
 /* Button polish and accessibility */
-.btn, button, select, input[type="button"], input[type="submit"] {
+.btn, button, input[type="button"], input[type="submit"] {
     border-radius: var(--radius-sm, 0.5rem);
     transition: box-shadow var(--transition, 0.18s cubic-bezier(0.4,0,0.2,1)), background var(--transition, 0.18s cubic-bezier(0.4,0,0.2,1)), color var(--transition, 0.18s cubic-bezier(0.4,0,0.2,1));
     box-shadow: 0 1px 2px 0 #0001;
@@ -14,16 +14,33 @@
     min-width: 44px;
     min-height: 44px;
 }
-.btn:hover, button:hover, select:hover, input[type="button"]:hover, input[type="submit"]:hover {
+.btn:hover, button:hover, input[type="button"]:hover, input[type="submit"]:hover {
     background: var(--accent-hover, #1565c0);
     box-shadow: 0 2px 8px 0 #1976d244;
 }
-.btn:focus-visible, button:focus-visible, select:focus-visible, input[type="button"]:focus-visible, input[type="submit"]:focus-visible {
+.btn:focus-visible, button:focus-visible, input[type="button"]:focus-visible, input[type="submit"]:focus-visible {
+    box-shadow: var(--focus-ring, 0 0 0 3px #1976d288);
+}
+
+select {
+    border-radius: var(--radius-sm, 0.5rem);
+    border: 1px solid var(--border, #d0d0d8);
+    background: var(--surface, #fff);
+    color: var(--app-text, #1a1a2e);
+    font-size: 0.95rem;
+    padding: 0.45em 0.8em;
+    cursor: pointer;
+    outline: none;
+    min-height: 38px;
+    transition: border-color 0.15s;
+}
+select:focus-visible {
+    border-color: var(--accent, #1976d2);
     box-shadow: var(--focus-ring, 0 0 0 3px #1976d288);
 }
 
 @media (max-width: 600px) {
-    .btn, button, select, input[type="button"], input[type="submit"] {
+    .btn, button, input[type="button"], input[type="submit"] {
         min-width: 48px;
         min-height: 48px;
         font-size: 1.1em;
@@ -32,20 +49,75 @@
 /* ── GameControls ────────────────────────────────────────────────── */
 .controls {
     display: flex;
-    align-items: flex-end;
-    gap: 1rem;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 0.6rem;
 }
 
 .controls-selectors {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.6rem;
     flex-wrap: wrap;
-    flex: 1;
 }
 
 .control-group {
     display: flex;
     flex-direction: column;
-    min-width: 140px;
+    flex: 1;
+    min-width: 110px;
+}
+
+/* ── Customisation disclosure ─────────────────────────────────────── */
+.customization-details summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.2rem 0;
+    list-style: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+.customization-details summary::-webkit-details-marker { display: none; }
+.customization-details summary::before { content: '▶  '; font-size: 0.6rem; }
+.customization-details[open] summary::before { content: '▼  '; }
+
+.player-customization {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding-top: 0.5rem;
+}
+
+.player-custom-group {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.player-custom-group label {
+    margin-bottom: 0;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.name-input {
+    width: 7rem;
+    padding: 0.25rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 0.5rem);
+    background: var(--surface);
+    color: var(--text-primary);
+    font-size: 0.82rem;
+}
+
+.color-input {
+    width: 1.8rem;
+    height: 1.8rem;
+    border: none;
+    border-radius: 50%;
+    padding: 0;
+    cursor: pointer;
+    background: none;
 }

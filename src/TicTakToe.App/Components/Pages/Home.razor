@@ -19,13 +19,6 @@
         <button class="btn btn-primary play-again" @onclick:stopPropagation="true" @onclick="StartNewGame">Play Again</button>
     </div>
 }
-<div class="settings-panel" style="margin-bottom:1.5rem; padding:1rem; background:var(--surface-alt); border-radius:var(--radius-md); box-shadow:0 2px 8px #0001; max-width:420px;">
-    <h3 style="margin-top:0; font-size:1.1rem;">Settings</h3>
-    <div style="display:flex; align-items:center; gap:1rem;">
-        <input id="settings-ai-visualization" type="checkbox" checked="@_showAiVisualization" @onchange="e => HandleShowAiVisualizationChanged(e.Value is bool b ? b : !_showAiVisualization)" />
-        <label for="settings-ai-visualization" style="margin-bottom:0; cursor:pointer;">Show AI move visualization overlays</label>
-    </div>
-</div>
 <div class="game-layout">
     <div class="game-column">
         <div class="card game-card @(ShowShake ? "shake" : null)">
@@ -35,15 +28,15 @@
             <div class="camera-cue" aria-live="polite">
                 @(_cameraCueMessage ?? (_mode == GameMode.CvC ? "CvC cameras are ready." : "Switch to CvC to activate cinematic cues."))
             </div>
-            <GameStatus Engine="Engine" PlayerXName="_playerXName" PlayerOName="_playerOName" />
+            <GameStatus Engine="Engine" PlayerXName="@_playerXName" PlayerOName="@_playerOName" PlayerXColor="@_playerXColor" PlayerOColor="@_playerOColor" />
             <GameBoard Engine="Engine"
                        OnHumanMove="HandleHumanMove"
-                       HintIndex="_hintIndex"
-                       PlayerXColor="_playerXColor"
-                       PlayerOColor="_playerOColor"
-                       ForkCells="_forkCells"
-                       BlockCells="_blockCells"
-                       DrawCells="_drawCells"
+                       HintIndex="@_hintIndex"
+                       PlayerXColor="@_playerXColor"
+                       PlayerOColor="@_playerOColor"
+                       ForkCells="@_forkCells"
+                       BlockCells="@_blockCells"
+                       DrawCells="@_drawCells"
                        ShowResetAnim="@_showResetAnim"
                        AiMoveEvaluations="_showAiVisualization ? _aiMoveEvaluations : null"
                        VisualizationMode="_visualizationMode"
@@ -63,21 +56,21 @@
                           OnDifficultyChanged="HandleDifficultyChanged"
                           OnBoardSizeChanged="HandleBoardSizeChanged"
                           OnHintRequested="HandleHintRequested"
-                          PlayerXName="_playerXName"
-                          PlayerOName="_playerOName"
-                          PlayerXColor="_playerXColor"
-                          PlayerOColor="_playerOColor"
+                          PlayerXName="@_playerXName"
+                          PlayerOName="@_playerOName"
+                          PlayerXColor="@_playerXColor"
+                          PlayerOColor="@_playerOColor"
                           OnPlayerXNameChanged="HandlePlayerXNameChanged"
                           OnPlayerONameChanged="HandlePlayerONameChanged"
                           OnPlayerXColorChanged="HandlePlayerXColorChanged"
                           OnPlayerOColorChanged="HandlePlayerOColorChanged"
-                          ShowAiVisualization="_showAiVisualization"
+                          ShowAiVisualization="@_showAiVisualization"
                           OnShowAiVisualizationChanged="HandleShowAiVisualizationChanged"
-                          VisualizationMode="_visualizationMode"
+                          VisualizationMode="@_visualizationMode"
                           OnVisualizationModeChanged="HandleVisualizationModeChanged"
-                          StepIndex="_stepIndex"
+                          StepIndex="@_stepIndex"
                           OnStepIndexChanged="HandleStepIndexChanged"
-                          StepPlay="_stepPlay"
+                          StepPlay="@_stepPlay"
                           OnStepPlayChanged="HandleStepPlayChanged" />
         </div>
     </div>
@@ -100,6 +93,22 @@
     private bool _showAiVisualization = false;
     private string _playerXName = "Player X";
     private string _playerOName = "Player O";
+
+    private static readonly string[] AiNames =
+    [
+        "AIDEN", "NEXUS", "CIPHER", "ORION", "VERTEX",
+        "AXIOM", "PULSE", "ECHO", "NOVA", "ZENITH",
+        "QUBIT", "LYRA", "TITAN", "VEGA", "HELIX",
+        "ARGO", "SYREN", "OBERON", "KIRA", "DRACO"
+    ];
+
+    private static string PickAiName(Random rng, string exclude) 
+    {
+        var name = AiNames[rng.Next(AiNames.Length)];
+        while (name == exclude)
+            name = AiNames[rng.Next(AiNames.Length)];
+        return name;
+    }
     private string _playerXColor = "#1976d2";
     private string _playerOColor = "#d32f2f";
     private int? _hintIndex;
@@ -138,6 +147,7 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadPlayerPrefs();
+        AssignAiNamesIfNeeded();
         Engine.StartGame(_mode, _difficulty, BoardConfig);
         Engine.GameStateChanged += OnGameStateChanged;
     }
@@ -210,6 +220,7 @@
                     var lastPlayer = Engine.CurrentPlayer == Player.X ? Player.O : Player.X;
                     if (TryTriggerForkHighlight(lastPlayer))
                         _cameraOverlay.SetCueMessage($"{GetPlayerLabel(lastPlayer)} is setting up a fork", StateHasChanged);
+                    _cvcScheduler.Schedule(_cvcMoveDelay, async () => Engine.TriggerAiMove());
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -422,7 +433,28 @@
     private void HandleModeChanged(GameMode mode)
     {
         _mode = mode;
+        AssignAiNamesIfNeeded();
         StartNewGame();
+    }
+
+    private void AssignAiNamesIfNeeded()
+    {
+        var rng = new Random();
+        if (_mode == GameMode.CvC)
+        {
+            _playerXName = PickAiName(rng, string.Empty);
+            _playerOName = PickAiName(rng, _playerXName);
+        }
+        else if (_mode == GameMode.PvC)
+        {
+            _playerXName = "Player";
+            _playerOName = PickAiName(rng, string.Empty);
+        }
+        else
+        {
+            _playerXName = "Player X";
+            _playerOName = "Player O";
+        }
     }
 
     private void HandleBoardSizeChanged(int size)
@@ -463,13 +495,16 @@
             pauseMs += DramaticHoldBonusMs;
         _cvcScheduler.Cancel();
         _cameraOverlay.Cancel();
+        // Auto-dismiss the result banner then start the next game
         _cvcScheduler.Schedule(pauseMs, async () =>
         {
             if (_mode != GameMode.CvC)
                 return;
             _resultPersisted = false;
             _cameraOverlay.Cancel();
+            AssignAiNamesIfNeeded();
             Engine.StartGame(GameMode.CvC, _difficulty, BoardConfig);
+            await InvokeAsync(StateHasChanged);
             _cvcScheduler.Schedule(_cvcMoveDelay, async () => Engine.TriggerAiMove());
         });
         _dramaticWinPending = false;

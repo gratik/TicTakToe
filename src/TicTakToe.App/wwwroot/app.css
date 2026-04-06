@@ -92,7 +92,8 @@ body {
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    padding: 2rem 1rem;
+    padding: 1rem;
+    overflow-y: auto;
 }
 
 /* ─── Card ───────────────────────────────────────────────────────── */

@@ -28,7 +28,7 @@
         GameResult.OWins => $"{PlayerOName} wins! 🎉",
         GameResult.Draw  => "It's a draw!",
         _ => Engine.Mode == GameMode.CvC
-                ? $"Computer ({Engine.CurrentPlayer}) is thinking…"
+                ? $"{(Engine.CurrentPlayer == Player.X ? PlayerXName : PlayerOName)} is thinking…"
                 : $"{PlayerLabel(Engine.CurrentPlayer)}'s turn"
     };
 
@@ -50,7 +50,7 @@
     private string PlayerLabel(Player p) => Engine.Mode switch
     {
         GameMode.PvP => p == Player.X ? PlayerXName : PlayerOName,
-        GameMode.PvC => p == Player.X ? "Your" : "Computer",
-        _ => $"Computer ({p})"
+        GameMode.PvC => p == Player.X ? PlayerXName : PlayerOName,
+        _ => p == Player.X ? PlayerXName : PlayerOName
     };
 }

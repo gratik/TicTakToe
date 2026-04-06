@@ -7,6 +7,14 @@ namespace TicTakToe.App.Core.Services.Strategies;
 /// </summary>
 public sealed class RandomStrategy : IAiStrategy
 {
+    /// <summary>
+    /// Returns all available moves with null score for visualization.
+    /// </summary>
+    public IReadOnlyList<AiMoveEvaluation> GetMoveEvaluations(Board board, Player player)
+    {
+        var moves = board.GetAvailableMoves();
+        return moves.Select(i => new AiMoveEvaluation(i, null, null)).ToList();
+    }
     private readonly Random _random;
 
     /// <summary>Initialises a new instance with an optional <see cref="Random"/> source.</summary>

@@ -1,14 +1,65 @@
 @inherits LayoutComponentBase
+@inject IJSRuntime js
+
 
 <div class="app-shell">
     <header class="app-header">
         <span class="app-title">Tic-Tac-Toe</span>
         <ThemeToggle />
+        <input type="color" class="accent-picker" title="Accent color" value="@_accent" @onchange="OnAccentChanged" style="margin-left:1rem; width:2.2rem; height:2.2rem; border:none; background:none; cursor:pointer;" />
+        <button class="btn btn-icon" @onclick="ToggleMute" title="@(_muted ? "Unmute" : "Mute")" style="margin-left:1rem;">
+            @(_muted ? "🔇" : "🔊")
+        </button>
     </header>
     <main class="app-main">
         @Body
     </main>
 </div>
+@code {
+    private string _accent = "#1976d2";
+    private bool _muted = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _accent = (await js.InvokeAsync<string>("localStorage.getItem", "ttt_accent")) ?? "#1976d2";
+        }
+        catch { }
+
+        try
+        {
+            var mutedStr = await js.InvokeAsync<string>("localStorage.getItem", "ttt_muted");
+            _muted = mutedStr == "True" || mutedStr == "true";
+        }
+        catch { }
+    }
+
+    private async Task OnAccentChanged(ChangeEventArgs e)
+    {
+        if (e.Value is string color)
+        {
+            _accent = color;
+            await js.InvokeVoidAsync("localStorage.setItem", "ttt_accent", color);
+            await SetAccentCss(color);
+        }
+    }
+
+    private async Task SetAccentCss(string color)
+    {
+        try
+        {
+            await js.InvokeVoidAsync("eval", $"document.documentElement.style.setProperty('--accent', '{color}')");
+        }
+        catch { }
+    }
+
+    private async Task ToggleMute()
+    {
+        _muted = !_muted;
+        await js.InvokeVoidAsync("localStorage.setItem", "ttt_muted", _muted.ToString());
+    }
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

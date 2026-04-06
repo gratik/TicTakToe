@@ -13,4 +13,9 @@ public interface IAiPlayer
     /// <param name="difficulty">Desired difficulty level.</param>
     /// <returns>A valid cell index (0–8).</returns>
     int ChooseMove(Board board, Player player, Difficulty difficulty);
+
+    /// <summary>
+    /// Returns all moves considered by the AI and their scores/labels for visualization overlays.
+    /// </summary>
+    IReadOnlyList<AiMoveEvaluation> GetMoveEvaluations(Board board, Player player, Difficulty difficulty);
 }

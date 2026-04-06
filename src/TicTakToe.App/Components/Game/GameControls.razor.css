@@ -1,3 +1,34 @@
+/* Button polish and accessibility */
+.btn, button, select, input[type="button"], input[type="submit"] {
+    border-radius: var(--radius-sm, 0.5rem);
+    transition: box-shadow var(--transition, 0.18s cubic-bezier(0.4,0,0.2,1)), background var(--transition, 0.18s cubic-bezier(0.4,0,0.2,1)), color var(--transition, 0.18s cubic-bezier(0.4,0,0.2,1));
+    box-shadow: 0 1px 2px 0 #0001;
+    outline: none;
+    border: none;
+    background: var(--accent, #1976d2);
+    color: #fff;
+    font-weight: 600;
+    padding: 0.6em 1.3em;
+    cursor: pointer;
+    position: relative;
+    min-width: 44px;
+    min-height: 44px;
+}
+.btn:hover, button:hover, select:hover, input[type="button"]:hover, input[type="submit"]:hover {
+    background: var(--accent-hover, #1565c0);
+    box-shadow: 0 2px 8px 0 #1976d244;
+}
+.btn:focus-visible, button:focus-visible, select:focus-visible, input[type="button"]:focus-visible, input[type="submit"]:focus-visible {
+    box-shadow: var(--focus-ring, 0 0 0 3px #1976d288);
+}
+
+@media (max-width: 600px) {
+    .btn, button, select, input[type="button"], input[type="submit"] {
+        min-width: 48px;
+        min-height: 48px;
+        font-size: 1.1em;
+    }
+}
 /* ── GameControls ────────────────────────────────────────────────── */
 .controls {
     display: flex;

@@ -4,11 +4,33 @@
     @for (int i = 0; i < Engine.Board.Cells.Count; i++)
     {
         var index = i; // capture for lambda
-        <GameCell Index="index"
-                  Value="Engine.Board[index]"
-                  IsWinningCell="@(_winLine?.Contains(index) ?? false)"
-                  IsClickable="@IsHumanClickable(index)"
-                  OnCellClick="HandleCellClick" />
+        var resetClass = ShowResetAnim && Engine.Board[index] == Player.None ? "cell-reset" : string.Empty;
+        AiMoveEvaluation? aiEval = null;
+        if (AiMoveEvaluations != null && VisualizationMode == "Heatmap")
+        {
+            aiEval = AiMoveEvaluations.FirstOrDefault(e => e.Index == index);
+        }
+        else if (AiMoveEvaluations != null && VisualizationMode == "Step" && StepIndex >= 0 && StepIndex < AiMoveEvaluations.Count)
+        {
+            var stepEval = AiMoveEvaluations[StepIndex];
+            if (stepEval.Index == index)
+                aiEval = stepEval;
+        }
+          <GameCell Index="index"
+              Value="Engine.Board[index]"
+              IsWinningCell="@(_winLine?.Contains(index) ?? false)"
+              IsHintCell="@(HintIndex.HasValue && HintIndex.Value == index)"
+              IsForkCell="@(ForkCells?.Contains(index) ?? false)"
+              IsBlockCell="@(BlockCells?.Contains(index) ?? false)"
+              IsDrawCell="@(DrawCells?.Contains(index) ?? false)"
+              IsClickable="@IsHumanClickable(index)"
+              PlayerXColor="@PlayerXColor"
+              PlayerOColor="@PlayerOColor"
+              OnCellClick="HandleCellClick"
+              AiEvaluation="aiEval"
+              AllAiEvaluations="AiMoveEvaluations"
+              VisualizationMode="VisualizationMode"
+              class="@resetClass" />
     }
 </div>
 
@@ -18,6 +40,35 @@
 
     /// <summary>Raised when the human player clicks a valid cell.</summary>
     [Parameter] public EventCallback<int> OnHumanMove { get; set; }
+
+    /// <summary>Visualization mode: "Heatmap" or "Step".</summary>
+    [Parameter] public string VisualizationMode { get; set; } = "Heatmap";
+
+    /// <summary>Current step index for step-through mode.</summary>
+    [Parameter] public int StepIndex { get; set; }
+
+    /// <summary>AI move evaluations for overlay display (optional).</summary>
+    [Parameter] public IReadOnlyList<AiMoveEvaluation>? AiMoveEvaluations { get; set; }
+
+    [Parameter] public bool ShowResetAnim { get; set; }
+
+    /// <summary>Player X's color (hex).</summary>
+    [Parameter] public string PlayerXColor { get; set; } = "#1976d2";
+
+    /// <summary>Player O's color (hex).</summary>
+    [Parameter] public string PlayerOColor { get; set; } = "#d32f2f";
+
+    /// <summary>Index of the cell to highlight as a hint, or null for none.</summary>
+    [Parameter] public int? HintIndex { get; set; }
+
+    /// <summary>Indices of cells to highlight as fork (special move).</summary>
+    [Parameter] public IReadOnlyList<int>? ForkCells { get; set; }
+
+    /// <summary>Indices of cells to highlight as block (special move).</summary>
+    [Parameter] public IReadOnlyList<int>? BlockCells { get; set; }
+
+    /// <summary>Indices of cells to highlight as draw (special move).</summary>
+    [Parameter] public IReadOnlyList<int>? DrawCells { get; set; }
 
     private int[]? _winLine;
 

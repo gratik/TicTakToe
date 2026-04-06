@@ -36,8 +36,15 @@ public class HomeTests : BunitContext
         statsMock.Setup(s => s.IncrementLossAsync(It.IsAny<GameMode>())).Returns(Task.CompletedTask);
         statsMock.Setup(s => s.IncrementDrawAsync(It.IsAny<GameMode>())).Returns(Task.CompletedTask);
 
+        var aiPlayerMock = new Mock<IAiPlayer>();
+        aiPlayerMock.Setup(a => a.ChooseMove(It.IsAny<Board>(), It.IsAny<Player>(), It.IsAny<Difficulty>()))
+            .Returns(0);
+        aiPlayerMock.Setup(a => a.GetMoveEvaluations(It.IsAny<Board>(), It.IsAny<Player>(), It.IsAny<Difficulty>()))
+            .Returns(new List<AiMoveEvaluation>());
+
         Services.AddSingleton(engineMock.Object);
         Services.AddSingleton(statsMock.Object);
+        Services.AddSingleton(aiPlayerMock.Object);
         Services.AddSingleton(Mock.Of<ILogger<Home>>());
 
         return (engineMock, statsMock);
@@ -96,24 +103,32 @@ public class HomeTests : BunitContext
     // ── HandleModeChanged ────────────────────────────────────────────────────
 
     [Fact]
-    public void HandleModeChanged_UpdatesModeAndStartsNewGame()
+    public async Task HandleModeChanged_UpdatesModeAndStartsNewGame()
     {
         var (engine, _) = SetupServices();
         var cut = Render<Home>();
 
-        cut.Find("#mode-select").Change("PvC");
+        var modeSelect = cut.Find("#mode-select");
+        modeSelect.Change("PvC");
+        
+        // Wait a bit for async operations
+        await Task.Delay(500);
+        cut.Render();
 
         engine.Verify(e => e.StartGame(GameMode.PvC, It.IsAny<Difficulty>(),
             It.Is<BoardConfiguration>(c => c.Size == 3 && c.WinLength == 3)), Times.Once);
     }
 
     [Fact]
-    public void HandleModeChanged_ToCvC_StartsCvCGame()
+    public async Task HandleModeChanged_ToCvC_StartsCvCGame()
     {
         var (engine, _) = SetupServices();
         var cut = Render<Home>();
 
         cut.Find("#mode-select").Change("CvC");
+        
+        await Task.Delay(500);
+        cut.Render();
 
         engine.Verify(e => e.StartGame(GameMode.CvC, It.IsAny<Difficulty>(),
             It.Is<BoardConfiguration>(c => c.Size == 3 && c.WinLength == 3)), Times.Once);
@@ -122,41 +137,58 @@ public class HomeTests : BunitContext
     // ── HandleDifficultyChanged ──────────────────────────────────────────────
 
     [Fact]
-    public void HandleDifficultyChanged_UpdatesDifficultyAndStartsNewGame()
+    public async Task HandleDifficultyChanged_UpdatesDifficultyAndStartsNewGame()
     {
-        var (engine, _) = SetupServices(mode: GameMode.PvC);
+        var (engine, _) = SetupServices();
         var cut = Render<Home>();
 
+        cut.Find("#mode-select").Change("PvC"); // Must change mode first since difficulty is disabled for PvP
+        
+        await Task.Delay(500); // Wait for mode change to complete
+        cut.Render();
+        
         cut.Find("#diff-select").Change("Hard");
+        
+        await Task.Delay(500); // Wait for difficulty change to complete
+        cut.Render();
 
+        // Verify Hard difficulty was set in the last call to StartGame
         engine.Verify(e => e.StartGame(It.IsAny<GameMode>(), Difficulty.Hard,
             It.Is<BoardConfiguration>(c => c.Size == 3 && c.WinLength == 3)), Times.Once);
     }
 
+    // ── HandleBoardSizeChanged ──────────────────────────────────────────────
+
     [Fact]
-    public void HandleBoardSizeChanged_UpdatesSizeAndStartsNewGame()
+    public async Task HandleBoardSizeChanged_UpdatesSizeAndStartsNewGame()
     {
         var (engine, _) = SetupServices();
         var cut = Render<Home>();
 
         cut.Find("#board-size-select").Change("4");
+        
+        await Task.Delay(500);
+        cut.Render();
 
         engine.Verify(e => e.StartGame(It.IsAny<GameMode>(), It.IsAny<Difficulty>(),
-            It.Is<BoardConfiguration>(c => c.Size == 4 && c.WinLength == 4)), Times.AtLeastOnce());
+            It.Is<BoardConfiguration>(c => c.Size == 4 && c.WinLength == 4)), Times.Once);
     }
 
     // ── New Game button ──────────────────────────────────────────────────────
 
     [Fact]
-    public void NewGame_Button_CallsStartGame()
+    public async Task NewGame_Button_CallsStartGame()
     {
         var (engine, _) = SetupServices();
         var cut = Render<Home>();
 
         cut.Find("button.btn-primary").Click();
+        
+        await Task.Delay(500);
+        cut.Render();
 
         // Called once on init, once on button click
-        engine.Verify(e => e.StartGame(It.IsAny<GameMode>(), It.IsAny<Difficulty>(), It.IsAny<BoardConfiguration>()), Times.AtLeast(2));
+        engine.Verify(e => e.StartGame(It.IsAny<GameMode>(), It.IsAny<Difficulty>(), It.IsAny<BoardConfiguration>()), Times.Exactly(2));
     }
 
     // ── PersistResultAsync — PvP ─────────────────────────────────────────────

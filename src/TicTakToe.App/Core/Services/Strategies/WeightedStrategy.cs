@@ -8,6 +8,36 @@ namespace TicTakToe.App.Core.Services.Strategies;
 /// </summary>
 public sealed class WeightedStrategy : IAiStrategy
 {
+    /// <summary>
+    /// Returns all available moves, labeling win/block/other for visualization.
+    /// </summary>
+    public IReadOnlyList<AiMoveEvaluation> GetMoveEvaluations(Board board, Player player)
+    {
+        var opponent = player == Player.X ? Player.O : Player.X;
+        var moves = board.GetAvailableMoves();
+        var evaluations = new List<AiMoveEvaluation>();
+        foreach (var index in moves)
+        {
+            var cloneWin = board.Clone();
+            cloneWin.MakeMove(index, player);
+            var win = cloneWin.CheckResult();
+            if ((win == GameResult.XWins && player == Player.X) || (win == GameResult.OWins && player == Player.O))
+            {
+                evaluations.Add(new AiMoveEvaluation(index, 2, "Win"));
+                continue;
+            }
+            var cloneBlock = board.Clone();
+            cloneBlock.MakeMove(index, opponent);
+            var block = cloneBlock.CheckResult();
+            if ((block == GameResult.XWins && opponent == Player.X) || (block == GameResult.OWins && opponent == Player.O))
+            {
+                evaluations.Add(new AiMoveEvaluation(index, 1, "Block"));
+                continue;
+            }
+            evaluations.Add(new AiMoveEvaluation(index, 0, null));
+        }
+        return evaluations;
+    }
     private readonly Random _random;
 
     /// <summary>Initialises a new instance with an optional <see cref="Random"/> source.</summary>

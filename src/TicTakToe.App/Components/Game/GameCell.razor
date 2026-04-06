@@ -1,12 +1,73 @@
 @* A single board cell. Renders X, O, or empty. Animates on mark. *@
-<button class="cell @CssClass"
-        @onclick="OnClick"
-        disabled="@(!IsClickable)"
-        aria-label="@AriaLabel">
+<button class="cell @CssClass @AdditionalClasses"
+    @onclick="OnClick"
+    disabled="@(!IsClickable)"
+    aria-label="@AriaLabel"
+    style="@HeatmapStyle">
     <span class="cell-mark">@Symbol</span>
+    @if (IsForkCell)
+    {
+        <span class="cell-fork-indicator" aria-hidden="true"></span>
+    }
+    @if (IsBlockCell)
+    {
+        <span class="cell-block-indicator" aria-hidden="true"></span>
+    }
+    @if (IsDrawCell)
+    {
+        <span class="cell-draw-indicator" aria-hidden="true"></span>
+    }
+    @if (AiEvaluation is not null && Value == Player.None)
+    {
+        <span class="cell-ai-eval" aria-hidden="true">
+            @if (!string.IsNullOrEmpty(AiEvaluation.Label))
+            {
+                <span class="cell-ai-label">@AiEvaluation.Label</span>
+            }
+            @if (AiEvaluation.Score is not null)
+            {
+                <span class="cell-ai-score">@AiEvaluation.Score</span>
+            }
+        </span>
+    }
 </button>
-
 @code {
+    /// <summary>AI move evaluation for this cell (optional).</summary>
+    [Parameter] public AiMoveEvaluation? AiEvaluation { get; set; }
+    /// <summary>All AI move evaluations for heatmap color mapping.</summary>
+    [Parameter] public IReadOnlyList<AiMoveEvaluation>? AllAiEvaluations { get; set; }
+    /// <summary>Visualization mode: "Heatmap" or "Step".</summary>
+    [Parameter] public string VisualizationMode { get; set; } = "Heatmap";
+
+    private string HeatmapStyle
+    {
+        get
+        {
+            if (VisualizationMode != "Heatmap" || AiEvaluation?.Score is null || AllAiEvaluations is null || AllAiEvaluations.Count == 0)
+                return string.Empty;
+            // Only consider moves with a score
+            var scored = AllAiEvaluations.Where(e => e.Score is not null).ToList();
+            if (scored.Count == 0) return string.Empty;
+            int min = scored.Min(e => e.Score!.Value);
+            int max = scored.Max(e => e.Score!.Value);
+            int val = AiEvaluation.Score.Value;
+            // Normalize to 0..1
+            double t = (max == min) ? 1.0 : (val - min) / (double)(max - min);
+            // Interpolate color: blue (low) → yellow (high)
+            var color = HeatmapColor(t);
+            return $"background: linear-gradient(135deg, {color} 80%, transparent 100%);";
+        }
+    }
+    
+    private static string HeatmapColor(double t)
+    {
+        // Blue (low): #e3f2fd, Yellow (high): #ffe066
+        int r = (int)(0xe3 + t * (0xff - 0xe3));
+        int g = (int)(0xf2 + t * (0xe0 - 0xf2));
+        int b = (int)(0xfd + t * (0x66 - 0xfd));
+        return $"rgb({r},{g},{b})";
+    }
+
     /// <summary>Cell index (0–8).</summary>
     [Parameter] public int Index { get; set; }
 
@@ -15,12 +76,29 @@
 
     /// <summary>Whether this cell is part of the winning line.</summary>
     [Parameter] public bool IsWinningCell { get; set; }
+    /// <summary>Whether this cell is part of a hint (special highlight).</summary>
+    [Parameter] public bool IsHintCell { get; set; }
+    /// <summary>Whether this cell is part of a fork move (special highlight).</summary>
+    [Parameter] public bool IsForkCell { get; set; }
+    /// <summary>Whether this cell is part of a block move (special highlight).</summary>
+    [Parameter] public bool IsBlockCell { get; set; }
+    /// <summary>Whether this cell is part of a draw highlight (special highlight).</summary>
+    [Parameter] public bool IsDrawCell { get; set; }
 
     /// <summary>Whether the cell can be clicked (game in progress, empty cell, human turn).</summary>
     [Parameter] public bool IsClickable { get; set; }
 
+    /// <summary>Player X's color (hex).</summary>
+    [Parameter] public string PlayerXColor { get; set; } = "#1976d2";
+
+    /// <summary>Player O's color (hex).</summary>
+    [Parameter] public string PlayerOColor { get; set; } = "#d32f2f";
+
     /// <summary>Raised when the user clicks this cell.</summary>
     [Parameter] public EventCallback<int> OnCellClick { get; set; }
+
+    /// <summary>Captures additional HTML attributes.</summary>
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
 
     private string Symbol => Value switch
     {
@@ -45,6 +123,17 @@
         }
     }
 
+    private string AdditionalClasses
+    {
+        get
+        {
+            if (AdditionalAttributes == null) return string.Empty;
+            if (AdditionalAttributes.TryGetValue("class", out var classVal))
+                return classVal?.ToString() ?? string.Empty;
+            return string.Empty;
+        }
+    }
+
     private string CssClass
     {
         get
@@ -53,6 +142,10 @@
             if (Value == Player.X) classes.Add("cell-x");
             if (Value == Player.O) classes.Add("cell-o");
             if (IsWinningCell) classes.Add("cell-win");
+            if (IsHintCell) classes.Add("cell-hint");
+            if (IsForkCell) classes.Add("cell-fork");
+            if (IsBlockCell) classes.Add("cell-block");
+            if (IsDrawCell) classes.Add("cell-draw");
             if (IsClickable) classes.Add("cell-clickable");
             return string.Join(" ", classes);
         }

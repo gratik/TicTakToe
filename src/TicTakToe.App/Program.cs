@@ -10,11 +10,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+
 // Game services
-builder.Services.AddScoped<IAiStrategy, RandomStrategy>();
-builder.Services.AddScoped<IAiStrategy, WeightedStrategy>();
-builder.Services.AddScoped<IAiStrategy, MinimaxStrategy>();
-builder.Services.AddScoped<IAiPlayer, AiPlayer>();
+// Register each AI strategy as its concrete type. Only AiPlayer receives all via IEnumerable<IAiStrategy>.
+// This prevents accidental single-strategy injection and ensures extensibility.
+builder.Services.AddScoped<RandomStrategy>();
+builder.Services.AddScoped<WeightedStrategy>();
+builder.Services.AddScoped<MinimaxStrategy>();
+builder.Services.AddScoped<IAiPlayer, AiPlayer>(); // AiPlayer will receive all strategies via IEnumerable<IAiStrategy>
 builder.Services.AddScoped<IGameEngine, GameEngine>();
 builder.Services.AddScoped<IStatsService, LocalStorageStatsService>();
 

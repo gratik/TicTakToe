@@ -1,3 +1,67 @@
+/* AI move evaluation overlay */
+.cell-ai-eval {
+    position: absolute;
+    bottom: 0.25rem;
+    right: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 2;
+}
+.cell-ai-label {
+    background: #fffbe7;
+    color: #b8860b;
+    font-size: 0.7rem;
+    border-radius: 0.5rem;
+    padding: 0.1rem 0.5rem;
+    margin-bottom: 0.1rem;
+    box-shadow: 0 1px 4px #0001;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.cell-ai-score {
+    background: #e3f2fd;
+    color: #1976d2;
+    font-size: 0.8rem;
+    border-radius: 0.5rem;
+    padding: 0.1rem 0.5rem;
+    box-shadow: 0 1px 4px #0001;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.cell-reset {
+    animation: cell-reset-fade 350ms cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes cell-reset-fade {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+.cell-fork {
+    animation: fork-glow 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+    box-shadow: 0 0 0 2px #ffe066, 0 0 12px 2px #ffe06666;
+}
+.cell-block {
+    animation: block-glow 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+    box-shadow: 0 0 0 2px #64b5f6, 0 0 12px 2px #64b5f666;
+}
+.cell-draw {
+    animation: draw-glow 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+    box-shadow: 0 0 0 2px #bdbdbd, 0 0 12px 2px #bdbdbd66;
+}
+
+@keyframes fork-glow {
+    from { box-shadow: 0 0 0 2px #ffe066, 0 0 0 0 #ffe06666; }
+    to   { box-shadow: 0 0 0 6px #ffe066, 0 0 16px 6px #ffe06666; }
+}
+@keyframes block-glow {
+    from { box-shadow: 0 0 0 2px #64b5f6, 0 0 0 0 #64b5f666; }
+    to   { box-shadow: 0 0 0 6px #64b5f6, 0 0 16px 6px #64b5f666; }
+}
+@keyframes draw-glow {
+    from { box-shadow: 0 0 0 2px #bdbdbd, 0 0 0 0 #bdbdbd66; }
+    to   { box-shadow: 0 0 0 6px #bdbdbd, 0 0 16px 6px #bdbdbd66; }
+}
 /* ── GameCell ────────────────────────────────────────────────────── */
 .cell {
     aspect-ratio: 1;

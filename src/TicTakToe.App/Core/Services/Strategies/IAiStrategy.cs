@@ -18,4 +18,12 @@ public interface IAiStrategy
     /// <param name="player">The AI player making the move.</param>
     /// <returns>A valid cell index (0–8).</returns>
     int ChooseMove(Board board, Player player);
+
+    /// <summary>
+    /// Returns a list of all moves considered by the AI and their evaluation scores (if available).
+    /// For Minimax: all root-level moves and their minimax scores.
+    /// For Weighted: moves checked for win/block (score 2=win, 1=block, 0=other).
+    /// For Random: all available moves (score null).
+    /// </summary>
+    IReadOnlyList<AiMoveEvaluation> GetMoveEvaluations(Board board, Player player);
 }

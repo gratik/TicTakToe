@@ -8,6 +8,22 @@ namespace TicTakToe.App.Core.Services.Strategies;
 /// </summary>
 public sealed class MinimaxStrategy : IAiStrategy
 {
+    /// <summary>
+    /// Returns all root-level moves and their minimax scores for visualization.
+    /// </summary>
+    public IReadOnlyList<AiMoveEvaluation> GetMoveEvaluations(Board board, Player player)
+    {
+        var moves = board.GetAvailableMoves();
+        var evaluations = new List<AiMoveEvaluation>();
+        foreach (var index in moves)
+        {
+            var clone = board.Clone();
+            clone.MakeMove(index, player);
+            int score = Minimax(clone, player, false, int.MinValue, int.MaxValue, 0);
+            evaluations.Add(new AiMoveEvaluation(index, score, null));
+        }
+        return evaluations;
+    }
     /// <inheritdoc/>
     public Difficulty Difficulty => Difficulty.Hard;
 

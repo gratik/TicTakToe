@@ -1,0 +1,121 @@
+/* Board shake animation for win/draw */
+.shake {
+    animation: shake 0.5s cubic-bezier(0.36,0.07,0.19,0.97);
+}
+@keyframes shake {
+    10%, 90% { transform: translateX(-2px); }
+    20%, 80% { transform: translateX(4px); }
+    30%, 50%, 70% { transform: translateX(-8px); }
+    40%, 60% { transform: translateX(8px); }
+    100% { transform: translateX(0); }
+}
+/* app.css: Root theme, button polish, and responsive tweaks */
+:root {
+    --accent: #1976d2;
+    --accent-hover: #1565c0;
+    --radius-sm: 0.5rem;
+    --transition: 0.18s cubic-bezier(0.4,0,0.2,1);
+    --focus-ring: 0 0 0 3px #1976d288;
+}
+
+.btn, button, input[type="button"], input[type="submit"] {
+    border-radius: var(--radius-sm);
+    transition: box-shadow var(--transition), background var(--transition), color var(--transition);
+    box-shadow: 0 1px 2px 0 #0001;
+    outline: none;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    padding: 0.5em 1.2em;
+    cursor: pointer;
+    position: relative;
+}
+.btn:hover, button:hover, input[type="button"]:hover, input[type="submit"]:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 2px 8px 0 #1976d244;
+}
+.btn:focus-visible, button:focus-visible, input[type="button"]:focus-visible, input[type="submit"]:focus-visible {
+    box-shadow: var(--focus-ring);
+}
+
+/* App shell and header layout */
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.2rem 2.5vw 1.2rem 2vw;
+    background: var(--surface-alt, #f8f9fa);
+    box-shadow: 0 2px 8px 0 #0001;
+    font-size: 1.3rem;
+}
+.app-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 2.5vw 0 2vw 0;
+}
+
+.game-layout {
+    display: flex;
+    flex-direction: row;
+    gap: 2.5rem;
+    justify-content: center;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+.game-column, .stats-column {
+    min-width: 320px;
+    flex: 1 1 0;
+}
+.board {
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+/* Responsive layout for mobile */
+@media (max-width: 900px) {
+    .game-layout {
+        gap: 1.2rem;
+        padding: 0 1vw;
+    }
+    .app-header {
+        font-size: 1.1rem;
+        padding: 1rem 1vw 1rem 1vw;
+    }
+}
+@media (max-width: 600px) {
+    .app-main {
+        padding: 0.5rem 0 1.2rem 0;
+    }
+    .game-layout {
+        flex-direction: column;
+        gap: 1.2rem;
+        padding: 0 0.5vw;
+    }
+    .game-column, .stats-column {
+        width: 100%;
+        min-width: 0;
+        flex: 1 1 100%;
+    }
+    .board {
+        max-width: 98vw;
+    }
+    .app-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.7rem;
+        font-size: 1rem;
+        padding: 0.7rem 0.5vw 0.7rem 0.5vw;
+    }
+}
+
+/* Add more polish and theme variables as needed */

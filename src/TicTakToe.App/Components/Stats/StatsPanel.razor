@@ -13,10 +13,11 @@
         <div class="stats-row @(mode == ActiveMode ? "stats-row-active" : "")">
             <span class="mode-label">@ModeLabel(mode)</span>
             <div class="stat-chips">
-                <span class="chip chip-win" title="Wins">W: @stats.Wins</span>
-                <span class="chip chip-loss" title="Losses">L: @stats.Losses</span>
-                <span class="chip chip-draw" title="Draws">D: @stats.Draws</span>
+                <span class="chip chip-win @GetAnimClass(mode, "win", stats.Wins)" title="Wins">🏆 W: @stats.Wins</span>
+                <span class="chip chip-loss @GetAnimClass(mode, "loss", stats.Losses)" title="Losses">❌ L: @stats.Losses</span>
+                <span class="chip chip-draw @GetAnimClass(mode, "draw", stats.Draws)" title="Draws">🤝 D: @stats.Draws</span>
             </div>
+            // ...existing code...
         </div>
     }
 </div>
@@ -24,6 +25,19 @@
 @code {
     /// <summary>The currently active game mode (highlighted in the stats panel).</summary>
     [Parameter] public GameMode ActiveMode { get; set; }
+
+    // Animate stat changes
+    private Dictionary<(GameMode, string), int> _lastStat = new();
+    private string GetAnimClass(GameMode mode, string type, int value)
+    {
+        var key = (mode, type);
+        if (!_lastStat.TryGetValue(key, out var last) || last != value)
+        {
+            _lastStat[key] = value;
+            return "chip-anim";
+        }
+        return string.Empty;
+    }
 
     /// <summary>Raised after stats are successfully reset.</summary>
     [Parameter] public EventCallback OnReset { get; set; }

@@ -3,30 +3,82 @@
 @inject IGameEngine Engine
 @inject IStatsService StatsService
 @inject ILogger<Home> Logger
+@inject TicTakToe.App.Core.Services.Interfaces.IAiPlayer AiPlayer
+@inject IJSRuntime js
 @implements IDisposable
-
-@using TicTakToe.App.Core.Models
 
 <PageTitle>Tic-Tac-Toe</PageTitle>
 
+<link href="css/result-banner.css" rel="stylesheet" />
+@if (Engine.Result == GameResult.XWins || Engine.Result == GameResult.OWins || Engine.Result == GameResult.Draw)
+{
+    <div class="result-banner @ResultBannerClass" @onclick="StartNewGame" tabindex="0" role="status" aria-live="polite">
+        <span class="result-text">
+            @(Engine.Result == GameResult.XWins ? $"{_playerXName} wins!" : Engine.Result == GameResult.OWins ? $"{_playerOName} wins!" : "It's a draw!")
+        </span>
+        <button class="btn btn-primary play-again" @onclick:stopPropagation="true" @onclick="StartNewGame">Play Again</button>
+    </div>
+}
+<div class="settings-panel" style="margin-bottom:1.5rem; padding:1rem; background:var(--surface-alt); border-radius:var(--radius-md); box-shadow:0 2px 8px #0001; max-width:420px;">
+    <h3 style="margin-top:0; font-size:1.1rem;">Settings</h3>
+    <div style="display:flex; align-items:center; gap:1rem;">
+        <input id="settings-ai-visualization" type="checkbox" checked="@_showAiVisualization" @onchange="e => HandleShowAiVisualizationChanged(e.Value is bool b ? b : !_showAiVisualization)" />
+        <label for="settings-ai-visualization" style="margin-bottom:0; cursor:pointer;">Show AI move visualization overlays</label>
+    </div>
+</div>
 <div class="game-layout">
     <div class="game-column">
-        <div class="card game-card">
+        <div class="card game-card @(ShowShake ? "shake" : null)">
             <div class="camera-overlay @CameraOverlayClass" aria-hidden="@(!CameraOverlayActive)">
                 <span class="camera-overlay-text">@(_cameraOverlayText ?? string.Empty)</span>
             </div>
             <div class="camera-cue" aria-live="polite">
                 @(_cameraCueMessage ?? (_mode == GameMode.CvC ? "CvC cameras are ready." : "Switch to CvC to activate cinematic cues."))
             </div>
-            <GameStatus Engine="Engine" />
-            <GameBoard Engine="Engine" OnHumanMove="HandleHumanMove" />
+            <GameStatus Engine="Engine" PlayerXName="_playerXName" PlayerOName="_playerOName" />
+            <GameBoard Engine="Engine"
+                       OnHumanMove="HandleHumanMove"
+                       HintIndex="_hintIndex"
+                       PlayerXColor="_playerXColor"
+                       PlayerOColor="_playerOColor"
+                       ForkCells="_forkCells"
+                       BlockCells="_blockCells"
+                       DrawCells="_drawCells"
+                       ShowResetAnim="@_showResetAnim"
+                       AiMoveEvaluations="_showAiVisualization ? _aiMoveEvaluations : null"
+                       VisualizationMode="_visualizationMode"
+                       StepIndex="_stepIndex" />
+            @if (_hintIndex.HasValue && _mode == GameMode.PvC && Engine.Result == GameResult.InProgress)
+            {
+                <div class="hint-explanation" style="margin-top:0.5rem; color:#2a7; font-size:1rem;">
+                    <strong>Hint:</strong> Cell @(_hintIndex.Value + 1) — @_hintExplanation
+                    <button class="btn btn-link" style="margin-left:1rem;" @onclick="ClearHint">Clear</button>
+                </div>
+            }
             <GameControls Mode="_mode"
                           Difficulty="_difficulty"
                           BoardSize="_boardSize"
                           OnNewGame="StartNewGame"
                           OnModeChanged="HandleModeChanged"
                           OnDifficultyChanged="HandleDifficultyChanged"
-                          OnBoardSizeChanged="HandleBoardSizeChanged" />
+                          OnBoardSizeChanged="HandleBoardSizeChanged"
+                          OnHintRequested="HandleHintRequested"
+                          PlayerXName="_playerXName"
+                          PlayerOName="_playerOName"
+                          PlayerXColor="_playerXColor"
+                          PlayerOColor="_playerOColor"
+                          OnPlayerXNameChanged="HandlePlayerXNameChanged"
+                          OnPlayerONameChanged="HandlePlayerONameChanged"
+                          OnPlayerXColorChanged="HandlePlayerXColorChanged"
+                          OnPlayerOColorChanged="HandlePlayerOColorChanged"
+                          ShowAiVisualization="_showAiVisualization"
+                          OnShowAiVisualizationChanged="HandleShowAiVisualizationChanged"
+                          VisualizationMode="_visualizationMode"
+                          OnVisualizationModeChanged="HandleVisualizationModeChanged"
+                          StepIndex="_stepIndex"
+                          OnStepIndexChanged="HandleStepIndexChanged"
+                          StepPlay="_stepPlay"
+                          OnStepPlayChanged="HandleStepPlayChanged" />
         </div>
     </div>
     <div class="stats-column">
@@ -38,16 +90,33 @@
     private GameMode _mode = GameMode.PvP;
     private Difficulty _difficulty = Difficulty.Medium;
     private int _boardSize = 3;
-    private StatsPanel? _statsPanel;
-    private CancellationTokenSource? _cts;
-    private Task? _scheduledTask;
-    private bool _resultPersisted;
 
+    private bool ShowShake { get; set; }
+    private IReadOnlyList<AiMoveEvaluation>? _aiMoveEvaluations;
+    private bool _showResetAnim;
+    private string _visualizationMode = "Heatmap";
+    private int _stepIndex = 0;
+    private bool _stepPlay = false;
+    private bool _showAiVisualization = false;
+    private string _playerXName = "Player X";
+    private string _playerOName = "Player O";
+    private string _playerXColor = "#1976d2";
+    private string _playerOColor = "#d32f2f";
+    private int? _hintIndex;
+    private string? _hintExplanation;
+
+    private StatsPanel? _statsPanel;
+    private bool _resultPersisted;
     private BoardConfiguration BoardConfig => new(_boardSize, _boardSize);
+
+    // Animation highlight state
+    private IReadOnlyList<int>? _forkCells;
+    private IReadOnlyList<int>? _blockCells;
+    private IReadOnlyList<int>? _drawCells;
 
     // CvC speed acceleration
     private const int CvcStartDelay = 600;
-    private const int CvcMinDelay   = 30;
+    private const int CvcMinDelay = 30;
     private const double CvcDecayFactor = 0.75;
     private int _cvcMoveDelay = CvcStartDelay;
 
@@ -55,18 +124,20 @@
     private const int VictoryHoldDurationMs = 1000;
     private const int DramaticHoldBonusMs = 600;
 
-    private bool _showCameraFlash;
-    private bool _showVictoryHold;
-    private CancellationTokenSource? _cameraHighlightCts;
-    private string? _cameraOverlayText;
-    private string? _cameraCueMessage;
     private bool _dramaticWinPending;
 
-    private string CameraOverlayClass => _showCameraFlash ? "active flash" : _showVictoryHold ? "active hold" : string.Empty;
-    private bool CameraOverlayActive => _showCameraFlash || _showVictoryHold;
+    private readonly TicTakToe.App.Core.Services.CvcScheduler _cvcScheduler = new();
+    private readonly TicTakToe.App.Core.Services.CameraOverlayManager _cameraOverlay = new();
 
-    protected override void OnInitialized()
+    private string CameraOverlayClass => _cameraOverlay.ShowCameraFlash ? "active flash" : _cameraOverlay.ShowVictoryHold ? "active hold" : string.Empty;
+    private bool CameraOverlayActive => _cameraOverlay.ShowCameraFlash || _cameraOverlay.ShowVictoryHold;
+    private string? _cameraCueMessage => _cameraOverlay.CueMessage;
+    private string? _cameraOverlayText => _cameraOverlay.OverlayText;
+    private string ResultBannerClass => Engine.Result != GameResult.InProgress ? "show" : string.Empty;
+
+    protected override async Task OnInitializedAsync()
     {
+        await LoadPlayerPrefs();
         Engine.StartGame(_mode, _difficulty, BoardConfig);
         Engine.GameStateChanged += OnGameStateChanged;
     }
@@ -77,13 +148,44 @@
         {
             try
             {
-                StateHasChanged();
+                // Compute animation highlights for all modes
+                ComputeSpecialHighlights();
 
+                // Compute AI move evaluations for overlays if enabled
+                if (_showAiVisualization && Engine.Result == GameResult.InProgress)
+                {
+                    _aiMoveEvaluations = AiPlayer.GetMoveEvaluations(Engine.Board.Clone(), Engine.CurrentPlayer, _difficulty);
+                }
+                else
+                {
+                    _aiMoveEvaluations = null;
+                }
+
+               // Play sound for win/draw and trigger shake
                 if (Engine.Result != GameResult.InProgress)
                 {
                     await PersistResultAsync();
                     if (_statsPanel is not null)
                         await _statsPanel.RefreshAsync();
+
+                    if (Engine.Result == GameResult.XWins || Engine.Result == GameResult.OWins)
+                    {
+                        await js.InvokeVoidAsync("tttSound.play", "win");
+                        ShowShake = true;
+                        StateHasChanged();
+                        await Task.Delay(500);
+                        ShowShake = false;
+                        StateHasChanged();
+                    }
+                    else if (Engine.Result == GameResult.Draw)
+                    {
+                        await js.InvokeVoidAsync("tttSound.play", "draw");
+                        ShowShake = true;
+                        StateHasChanged();
+                        await Task.Delay(500);
+                        ShowShake = false;
+                        StateHasChanged();
+                    }
 
                     if (_mode == GameMode.CvC)
                     {
@@ -95,7 +197,7 @@
                             GameResult.OWins => GetPlayerLabel(Player.O),
                             _ => "Draw"
                         };
-                        _cameraCueMessage = $"Camera hold: {resultLabel} – next cycle {_cvcMoveDelay}ms";
+                        _cameraOverlay.SetCueMessage($"Camera hold: {resultLabel} – next cycle {_cvcMoveDelay}ms", StateHasChanged);
 
                         if (dramaticHold && (Engine.Result == GameResult.XWins || Engine.Result == GameResult.OWins))
                             ShowVictoryHoldOverlay("Victory hold", $"Camera hold: {resultLabel} wins");
@@ -107,7 +209,7 @@
                 {
                     var lastPlayer = Engine.CurrentPlayer == Player.X ? Player.O : Player.X;
                     if (TryTriggerForkHighlight(lastPlayer))
-                        _cameraCueMessage = $"{GetPlayerLabel(lastPlayer)} is setting up a fork";
+                        _cameraOverlay.SetCueMessage($"{GetPlayerLabel(lastPlayer)} is setting up a fork", StateHasChanged);
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -121,14 +223,200 @@
         });
     }
 
-    private void HandleHumanMove(int index)
+    private void HandleVisualizationModeChanged(string mode)
+    {
+        _visualizationMode = mode;
+        _stepIndex = 0;
+        _stepPlay = false;
+        StateHasChanged();
+    }
+
+    private void HandleStepIndexChanged(int index)
+    {
+        if (_aiMoveEvaluations is null || _aiMoveEvaluations.Count == 0) return;
+        _stepIndex = Math.Max(0, Math.Min(index, _aiMoveEvaluations.Count - 1));
+        StateHasChanged();
+    }
+
+    private void HandleStepPlayChanged(bool play)
+    {
+        _stepPlay = play;
+        if (play) StartStepPlayLoop();
+        StateHasChanged();
+    }
+
+    private async void StartStepPlayLoop()
+    {
+        while (_stepPlay && _aiMoveEvaluations != null && _stepIndex < _aiMoveEvaluations.Count - 1)
+        {
+            await Task.Delay(700);
+            if (!_stepPlay) break;
+            _stepIndex++;
+            StateHasChanged();
+        }
+        _stepPlay = false;
+        StateHasChanged();
+    }
+
+    private void HandleShowAiVisualizationChanged(bool value)
+    {
+        _showAiVisualization = value;
+        StateHasChanged();
+    }
+
+    private void HandlePlayerXNameChanged(string name) 
+    { 
+        _playerXName = name; 
+        _ = SavePlayerPrefs(); 
+        StateHasChanged(); 
+    }
+    
+    private void HandlePlayerONameChanged(string name) 
+    { 
+        _playerOName = name; 
+        _ = SavePlayerPrefs(); 
+        StateHasChanged(); 
+    }
+    
+    private void HandlePlayerXColorChanged(string color) 
+    { 
+        _playerXColor = color; 
+        _ = SavePlayerPrefs(); 
+        StateHasChanged(); 
+    }
+    
+    private void HandlePlayerOColorChanged(string color) 
+    { 
+        _playerOColor = color; 
+        _ = SavePlayerPrefs(); 
+        StateHasChanged(); 
+    }
+
+    private async Task SavePlayerPrefs()
+    {
+        try
+        {
+            var prefs = System.Text.Json.JsonSerializer.Serialize(new { _playerXName, _playerOName, _playerXColor, _playerOColor });
+            await js.InvokeVoidAsync("localStorage.setItem", "ttt_player_prefs", prefs);
+        }
+        catch { }
+    }
+
+    private async Task LoadPlayerPrefs()
+    {
+        try
+        {
+            var prefsJson = await js.InvokeAsync<string>("localStorage.getItem", "ttt_player_prefs");
+            if (!string.IsNullOrWhiteSpace(prefsJson))
+            {
+                var prefs = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, string>>(prefsJson);
+                if (prefs != null)
+                {
+                    if (prefs.TryGetValue("_playerXName", out var xName)) _playerXName = xName;
+                    if (prefs.TryGetValue("_playerOName", out var oName)) _playerOName = oName;
+                    if (prefs.TryGetValue("_playerXColor", out var xColor)) _playerXColor = xColor;
+                    if (prefs.TryGetValue("_playerOColor", out var oColor)) _playerOColor = oColor;
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void ClearHint()
+    {
+        _hintIndex = null;
+        _hintExplanation = null;
+    }
+
+    private void HandleHintRequested()
+    {
+        if (_mode != GameMode.PvC || Engine.Result != GameResult.InProgress)
+            return;
+
+        var move = AiPlayer.ChooseMove(Engine.Board.Clone(), Engine.CurrentPlayer, _difficulty);
+        _hintIndex = move;
+        // Explanation for Hard/Minimax
+        if (_difficulty == Difficulty.Hard)
+        {
+            _hintExplanation = "This move is optimal (minimax).";
+        }
+        else if (_difficulty == Difficulty.Medium)
+        {
+            _hintExplanation = "This move blocks a win or creates a win if possible.";
+        }
+        else
+        {
+            _hintExplanation = "This move is chosen at random.";
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Computes and sets cell highlight lists for fork, block, and draw animations.
+    /// </summary>
+    private void ComputeSpecialHighlights()
+    {
+        var board = Engine.Board;
+        var current = Engine.CurrentPlayer;
+        var opponent = current == Player.X ? Player.O : Player.X;
+        var available = board.GetAvailableMoves();
+
+        // Fork: highlight cells that create two or more winning lines for current player
+        var forkCells = new List<int>();
+        foreach (var move in available)
+        {
+            int winCount = 0;
+            var clone = board.Clone();
+            clone.MakeMove(move, current);
+            var result = clone.CheckResult();
+            if (result == (current == Player.X ? GameResult.XWins : GameResult.OWins))
+            {
+                // Already a win, not a fork
+                continue;
+            }
+            // Count how many moves after this would win
+            foreach (var next in clone.GetAvailableMoves())
+            {
+                var forkClone = clone.Clone();
+                forkClone.MakeMove(next, current);
+                if (forkClone.CheckResult() == (current == Player.X ? GameResult.XWins : GameResult.OWins))
+                    winCount++;
+            }
+            if (winCount >= 2)
+                forkCells.Add(move);
+        }
+
+        // Block: highlight cells that block opponent's immediate win
+        var blockCells = new List<int>();
+        foreach (var move in available)
+        {
+            var clone = board.Clone();
+            clone.MakeMove(move, opponent);
+            if (clone.CheckResult() == (opponent == Player.X ? GameResult.XWins : GameResult.OWins))
+                blockCells.Add(move);
+        }
+
+        // Draw: highlight all cells if game ended in draw
+        IReadOnlyList<int>? drawCells = null;
+        if (Engine.Result == GameResult.Draw)
+            drawCells = Enumerable.Range(0, board.CellCount).ToList();
+
+        _forkCells = forkCells.Count > 0 ? forkCells : null;
+        _blockCells = blockCells.Count > 0 ? blockCells : null;
+        _drawCells = drawCells;
+    }
+
+    private async Task HandleHumanMove(int index)
     {
         if (Engine.Result != GameResult.InProgress) return;
         Engine.HumanMove(index);
 
+        // Play move sound (for human move)
+        await js.InvokeVoidAsync("tttSound.play", "move");
+
         // PvC: after human move, trigger AI
         if (Engine.Mode == GameMode.PvC && Engine.Result == GameResult.InProgress)
-            ScheduleAiMove(400);
+            _cvcScheduler.Schedule(400, async () => Engine.TriggerAiMove());
     }
 
     private void HandleModeChanged(GameMode mode)
@@ -150,142 +438,51 @@
         StartNewGame();
     }
 
-    /// <summary>Starts a fresh game. Resets CvC speed when called manually.</summary>
-    private void StartNewGame()
+    private async void StartNewGame()
     {
-        CancelScheduled();
-        ResetCameraState();
+        _showResetAnim = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        _showResetAnim = false;
+        _cvcScheduler.Cancel();
+        _cameraOverlay.Cancel();
         _resultPersisted = false;
         _cvcMoveDelay = CvcStartDelay; // reset speed on manual new game
         Engine.StartGame(_mode, _difficulty, BoardConfig);
 
         if (_mode == GameMode.CvC)
-            ScheduleAiMove(_cvcMoveDelay);
+            _cvcScheduler.Schedule(_cvcMoveDelay, async () => Engine.TriggerAiMove());
         else if (_mode == GameMode.PvC && Engine.CurrentPlayer == Player.O)
-            ScheduleAiMove(600);
+            _cvcScheduler.Schedule(600, async () => Engine.TriggerAiMove());
     }
 
-    /// <summary>
-    /// Schedules the next AI move after <paramref name="delayMs"/> milliseconds.
-    /// In CvC mode, recursively schedules itself until the game ends.
-    /// </summary>
-    private void ScheduleAiMove(int delayMs)
-    {
-        CancelScheduled();
-        var cts = new CancellationTokenSource();
-        _cts = cts;
-        _scheduledTask = ExecuteAfterDelayAsync(delayMs, cts.Token, () =>
-        {
-            if (Engine.Result != GameResult.InProgress)
-                return Task.CompletedTask;
-
-            Engine.TriggerAiMove();
-
-            if (_mode == GameMode.CvC && Engine.Result == GameResult.InProgress)
-                ScheduleAiMove(_cvcMoveDelay);
-
-            return Task.CompletedTask;
-        });
-    }
-
-    /// <summary>
-    /// After a CvC game ends, waits a beat then auto-starts the next game.
-    /// No-ops if the user has switched mode.
-    /// </summary>
     private void ScheduleCvcRestart(bool dramaticHold = false)
     {
-        // Pause between games = 3× the current move delay (min 120 ms) so the result is briefly visible
         int pauseMs = Math.Max(120, _cvcMoveDelay * 3);
         if (dramaticHold)
             pauseMs += DramaticHoldBonusMs;
-        CancelScheduled();
-        var cts = new CancellationTokenSource();
-        _cts = cts;
-        _scheduledTask = ExecuteAfterDelayAsync(pauseMs, cts.Token, () =>
+        _cvcScheduler.Cancel();
+        _cameraOverlay.Cancel();
+        _cvcScheduler.Schedule(pauseMs, async () =>
         {
             if (_mode != GameMode.CvC)
-                return Task.CompletedTask;
-
+                return;
             _resultPersisted = false;
-            ResetCameraState();
+            _cameraOverlay.Cancel();
             Engine.StartGame(GameMode.CvC, _difficulty, BoardConfig);
-            ScheduleAiMove(_cvcMoveDelay);
-
-            return Task.CompletedTask;
+            _cvcScheduler.Schedule(_cvcMoveDelay, async () => Engine.TriggerAiMove());
         });
-
-        _dramaticWinPending = false;
-    }
-
-    private void ResetCameraState()
-    {
-        CancelCameraHighlight();
-        _cameraCueMessage = null;
-        _cameraOverlayText = null;
-        _showCameraFlash = false;
-        _showVictoryHold = false;
         _dramaticWinPending = false;
     }
 
     private void TriggerCameraFlashOverlay(string overlayText, string cueMessage)
     {
-        CancelCameraHighlight();
-        _showVictoryHold = false;
-        _showCameraFlash = true;
-        _cameraOverlayText = overlayText;
-        _cameraCueMessage = cueMessage;
-        StateHasChanged();
-
-        var cts = new CancellationTokenSource();
-        _cameraHighlightCts = cts;
-        _ = ExecuteAfterDelayAsync(CameraFlashDurationMs, cts.Token, () =>
-        {
-            _showCameraFlash = false;
-            _cameraOverlayText = null;
-            StateHasChanged();
-
-            if (_cameraHighlightCts == cts)
-                _cameraHighlightCts = null;
-            cts.Dispose();
-            return Task.CompletedTask;
-        });
+        _cameraOverlay.TriggerFlash(overlayText, cueMessage, CameraFlashDurationMs, StateHasChanged);
     }
 
     private void ShowVictoryHoldOverlay(string overlayText, string cueMessage)
     {
-        CancelCameraHighlight();
-        _showCameraFlash = false;
-        _showVictoryHold = true;
-        _cameraOverlayText = overlayText;
-        _cameraCueMessage = cueMessage;
-        StateHasChanged();
-
-        var cts = new CancellationTokenSource();
-        _cameraHighlightCts = cts;
-        _ = ExecuteAfterDelayAsync(VictoryHoldDurationMs, cts.Token, () =>
-        {
-            _showVictoryHold = false;
-            _cameraOverlayText = null;
-            StateHasChanged();
-
-            if (_cameraHighlightCts == cts)
-                _cameraHighlightCts = null;
-            cts.Dispose();
-            return Task.CompletedTask;
-        });
-    }
-
-    private void CancelCameraHighlight()
-    {
-        if (_cameraHighlightCts is null)
-            return;
-
-        _cameraHighlightCts.Cancel();
-        _cameraHighlightCts.Dispose();
-        _cameraHighlightCts = null;
-        _showCameraFlash = false;
-        _showVictoryHold = false;
-        _cameraOverlayText = null;
+        _cameraOverlay.ShowVictory(overlayText, cueMessage, VictoryHoldDurationMs, StateHasChanged);
     }
 
     private bool TryTriggerForkHighlight(Player player)
@@ -324,35 +521,6 @@
 
     private static string GetPlayerLabel(Player player) => player == Player.X ? "X (AI)" : "O (AI)";
 
-    /// <summary>Awaits <paramref name="delayMs"/> then dispatches <paramref name="action"/> on the circuit thread.</summary>
-    private async Task ExecuteAfterDelayAsync(int delayMs, CancellationToken token, Func<Task> action)
-    {
-        try
-        {
-            await Task.Delay(delayMs, token);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        try
-        {
-            await InvokeAsync(action);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            Logger.LogError(ex, "Unhandled exception while running scheduled action.");
-        }
-    }
-
-    private void CancelScheduled()
-    {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = null;
-        _scheduledTask = null;
-    }
-
     private async Task PersistResultAsync()
     {
         if (_resultPersisted) return;
@@ -375,7 +543,7 @@
     public void Dispose()
     {
         Engine.GameStateChanged -= OnGameStateChanged;
-        CancelScheduled();
-        CancelCameraHighlight();
+        _cvcScheduler.Dispose();
+        _cameraOverlay.Dispose();
     }
 }

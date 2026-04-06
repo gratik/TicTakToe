@@ -1,3 +1,22 @@
+/* Player avatar/initials circle */
+.player-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0.5rem;
+    box-shadow: 0 1px 4px 0 #0002;
+    letter-spacing: 0.02em;
+    -webkit-user-select: none;
+    user-select: none;
+    border: 2px solid #fff3;
+    transition: opacity 0.18s cubic-bezier(0.4,0,0.2,1), background 0.18s cubic-bezier(0.4,0,0.2,1);
+}
 /* ── GameStatus ──────────────────────────────────────────────────── */
 .status {
     display: flex;

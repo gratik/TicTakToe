@@ -1,3 +1,4 @@
+
 using TicTakToe.App.Core.Models;
 using TicTakToe.App.Core.Services.Interfaces;
 using TicTakToe.App.Core.Services.Strategies;
@@ -9,6 +10,15 @@ namespace TicTakToe.App.Core.Services;
 /// </summary>
 public sealed class AiPlayer : IAiPlayer
 {
+    /// <summary>
+    /// Returns all moves considered by the AI and their scores/labels for visualization overlays.
+    /// </summary>
+    public IReadOnlyList<AiMoveEvaluation> GetMoveEvaluations(Board board, Player player, Difficulty difficulty)
+    {
+        if (!_strategies.TryGetValue(difficulty, out var strategy))
+            throw new ArgumentOutOfRangeException(nameof(difficulty), difficulty, "Unknown difficulty.");
+        return strategy.GetMoveEvaluations(board, player);
+    }
     private readonly IReadOnlyDictionary<Difficulty, IAiStrategy> _strategies;
 
     /// <summary>
